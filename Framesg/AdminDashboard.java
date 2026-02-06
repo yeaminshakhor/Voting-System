@@ -98,17 +98,17 @@ public class AdminDashboard extends JFrame implements ActionListener {
             new String[]{"Add nominees", "View nominee list", "Delete nominees"}, 
             "Manage Nominees", PRIMARY_BLUE));
 
-        // NEW: Live Results Card
+        // Live Results Card
         mainPanel.add(createCard("📊 Live Results", 
             new String[]{"Real-time vote counts", "Current standings", "Turnout statistics"}, 
             "View Live Results", ORANGE));
 
-        // NEW: Voter Status Card
+        // Voter Status Card
         mainPanel.add(createCard("👀 Voter Status", 
             new String[]{"Who has voted", "Who hasn't voted", "Participation tracking"}, 
             "Check Voter Status", MAGENTA));
 
-        // NEW: Publish Results Card
+        // Publish Results Card
         mainPanel.add(createCard("📋 Publish Results", 
             new String[]{"Generate final report", "Official results certificate"}, 
             "Publish Final Results", RED));
@@ -478,8 +478,7 @@ public class AdminDashboard extends JFrame implements ActionListener {
         }
     }
 
-    // NEW METHODS FOR VOTE COUNTING AND MONITORING
-
+    // Methods for vote counting and monitoring
     private void showLiveResults() {
         Map<String, Integer> voteCounts = getVoteCounts();
         int totalVotes = getTotalVotesCast();
@@ -577,44 +576,106 @@ public class AdminDashboard extends JFrame implements ActionListener {
     }
 
     private void publishFinalResults() {
-        int confirm = JOptionPane.showConfirmDialog(this,
-            "Publish final results? This will create an official results file.",
-            "Publish Results", JOptionPane.YES_NO_OPTION);
+        // Ask user what they want to do
+        String[] options = {"View Results in Dashboard", "Export to Text File", "Both", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(this,
+            "How would you like to view/publish the election results?",
+            "Publish Election Results",
+            JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+            null, options, options[0]);
         
-        if (confirm == JOptionPane.YES_OPTION) {
-            try (java.io.PrintWriter writer = new java.io.PrintWriter("election_results.txt")) {
-                Map<String, Integer> voteCounts = getVoteCounts();
-                int totalVotes = getTotalVotesCast();
+        switch (choice) {
+            case 0: // View Results in Dashboard
+                setVisible(false);
+                new ElectionResults(this).setVisible(true);
+                break;
                 
-                writer.println("OFFICIAL ELECTION RESULTS");
-                writer.println("Published: " + new Date());
-                writer.println("Total Votes Cast: " + totalVotes);
-                writer.println();
-                writer.println("RESULTS:");
+            case 1: // Export to Text File
+                exportResultsToFile();
+                break;
                 
+            case 2: // Both
+                setVisible(false);
+                new ElectionResults(this).setVisible(true);
+                exportResultsToFile();
+                break;
+                
+            case 3: // Cancel
+                // Do nothing
+                break;
+        }
+    }
+
+    // Helper method for file export
+    private void exportResultsToFile() {
+        try (java.io.PrintWriter writer = new java.io.PrintWriter("election_results_" + System.currentTimeMillis() + ".txt")) {
+            Map<String, Integer> voteCounts = getVoteCounts();
+            int totalVotes = getTotalVotesCast();
+            int totalVoters = getTotalRegisteredVoters();
+            
+            writer.println("═══════════════════════════════════════════════════");
+            writer.println("           OFFICIAL ELECTION RESULTS               ");
+            writer.println("═══════════════════════════════════════════════════");
+            writer.println("Generated: " + new Date());
+            writer.println("Total Registered Voters: " + totalVoters);
+            writer.println("Total Votes Cast: " + totalVotes);
+            writer.println("Voter Turnout: " + (totalVoters > 0 ? (totalVotes * 100 / totalVoters) : 0) + "%");
+            writer.println("═══════════════════════════════════════════════════\n");
+            
+            if (voteCounts.isEmpty()) {
+                writer.println("No votes have been cast in this election.");
+            } else {
+                writer.println("DETAILED RESULTS:");
+                writer.println(String.format("%-5s %-25s %-20s %-8s %-10s", 
+                    "Rank", "Candidate", "Party", "Votes", "Percentage"));
+                writer.println("────────────────────────────────────────────────────────────────────────────");
+                
+                // Find winner(s)
+                int maxVotes = 0;
+                for (int votes : voteCounts.values()) {
+                    if (votes > maxVotes) maxVotes = votes;
+                }
+                
+                int rank = 1;
                 for (Map.Entry<String, Integer> entry : voteCounts.entrySet()) {
                     String nomineeId = entry.getKey();
                     int votes = entry.getValue();
+                    int percentage = totalVotes > 0 ? (votes * 100 / totalVotes) : 0;
                     
                     // Find nominee details
+                    String nomineeName = "Unknown";
+                    String partyName = "Unknown";
                     String[] nominees = ElectionData.getAllNominees();
                     for (String nominee : nominees) {
                         String[] parts = nominee.split(":");
                         if (parts.length >= 3 && parts[0].equals(nomineeId)) {
-                            writer.println(parts[1] + " (" + parts[2] + "): " + votes + " votes (" + 
-                                (totalVotes > 0 ? (votes * 100 / totalVotes) : 0) + "%)");
+                            nomineeName = parts[1];
+                            partyName = parts[2];
                             break;
                         }
                     }
-                }
-                
-                JOptionPane.showMessageDialog(this, 
-                    "Results published to election_results.txt\nFile location: " + 
-                    new java.io.File("election_results.txt").getAbsolutePath());
                     
-            } catch (java.io.IOException e) {
-                JOptionPane.showMessageDialog(this, "Error publishing results: " + e.getMessage());
+                    String status = (votes == maxVotes) ? "WINNER" : "RUNNER UP";
+                    writer.println(String.format("%-5d %-25s %-20s %-8d %-10s", 
+                        rank++, nomineeName, partyName, votes, percentage + "%"));
+                }
             }
+            
+            writer.println("\n═══════════════════════════════════════════════════");
+            writer.println("This is an official election results certificate.");
+            writer.println("═══════════════════════════════════════════════════");
+            
+            JOptionPane.showMessageDialog(this,
+                "✅ Results exported successfully!\n" +
+                "File saved in current directory.",
+                "Export Complete",
+                JOptionPane.INFORMATION_MESSAGE);
+                
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this,
+                "❌ Error exporting results: " + e.getMessage(),
+                "Export Error",
+                JOptionPane.ERROR_MESSAGE);
         }
     }
 

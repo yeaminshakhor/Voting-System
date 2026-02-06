@@ -39,32 +39,4 @@ Comprehensive audit logging
 Prevention of duplicate voting
 
 Data validation at all levels
-🏗️ System Architecture
-src/
-├── Main.java                    # Main application entry point
-├── Data/                       # Data management layer
-│   ├── AdminData.java          # Admin authentication & management
-│   └── ElectionData.java       # Core election data operations
-├── Entities/                   # Business entities
-│   ├── Admin.java              # Administrator entity
-│   ├── Nominee.java           # Candidate/Nominee entity
-│   └── Voter.java             # Voter entity
-└── Framesg/                    # User Interface components
-    ├── AdminDashboard.java     # Admin control panel (main interface)
-    ├── AdminLogin.java         # Admin authentication screen
-    ├── VoterLogin.java         # Voter authentication screen
-    ├── VoterRegistration.java  # Voter registration interface
-    ├── VoterVoting.java        # Voting interface
-    ├── VotingFrame.java        # Alternative voting interface
-    └── ... (additional UI components)
 
-    The system uses simple, human-readable text files for data persistence:
-
-File	Purpose	Format
-database_admins.txt	-Admin credentials and roles	-id:name:password:role
-database_voters.txt	-Voter information	-id:name:password
-database_nominees.txt	- Candidate information-	id:name:party
-database_votes.txt	-Vote records-	voterId:nomineeId:timestamp
-election_results.txt	Generated election results	Formatted report
-logs.txt	System activity logs	Timestamped events
-election_config.txt	Election configuration	Voting system type

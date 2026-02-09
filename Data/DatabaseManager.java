@@ -39,7 +39,7 @@ public class DatabaseManager {
         if (connection == null) return;
         
         String[] createTables = {
-            // Admins table with role-based permissions
+            // Admins table with role-based permissions (must match SqlAdminManager usage)
             "CREATE TABLE IF NOT EXISTS admins (" +
             "admin_id TEXT PRIMARY KEY, " +
             "name TEXT NOT NULL, " +
@@ -48,8 +48,10 @@ public class DatabaseManager {
             "salt TEXT NOT NULL, " +
             "is_active INTEGER DEFAULT 1, " +
             "permissions TEXT, " +
+            "needs_password_reset INTEGER DEFAULT 0, " +
             "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
-            "last_login TIMESTAMP)",
+            "last_login TIMESTAMP, " +
+            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
             
             // Voters table
             "CREATE TABLE IF NOT EXISTS voters (" +
@@ -105,6 +107,13 @@ public class DatabaseManager {
             for (String sql : createTables) {
                 stmt.execute(sql);
             }
+            // One-time migration: add columns to existing admins table if missing
+            try {
+                stmt.execute("ALTER TABLE admins ADD COLUMN needs_password_reset INTEGER DEFAULT 0");
+            } catch (SQLException e) { /* column may already exist */ }
+            try {
+                stmt.execute("ALTER TABLE admins ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+            } catch (SQLException e) { /* column may already exist */ }
             System.out.println("✅ All tables created/verified");
         } catch (SQLException e) {
             System.out.println("⚠️ Error creating tables: " + e.getMessage());
@@ -115,7 +124,9 @@ public class DatabaseManager {
      * Execute an INSERT, UPDATE, or DELETE statement
      */
     public static boolean executeUpdate(String sql, Object... params) {
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        Connection conn = getConnection();
+        if (conn == null) return false;
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < params.length; i++) {
                 stmt.setObject(i + 1, params[i]);
             }
@@ -131,8 +142,10 @@ public class DatabaseManager {
      * Execute a SELECT query and return results
      */
     public static ResultSet executeQuery(String sql, Object... params) {
+        Connection conn = getConnection();
+        if (conn == null) return null;
         try {
-            PreparedStatement stmt = connection.prepareStatement(sql);
+            PreparedStatement stmt = conn.prepareStatement(sql);
             for (int i = 0; i < params.length; i++) {
                 stmt.setObject(i + 1, params[i]);
             }

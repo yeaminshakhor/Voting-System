@@ -1,0 +1,4 @@
+# Voter Additional Information (Portal Data)
+# Format: voter_id:blood_group:date_of_birth:email:department:batch:photo_path:status
+# Example: 24-59145-3:O+:1990-01-15:yeamin@example.com:CSE:2024:photos/24-59145-3.jpg:active
+

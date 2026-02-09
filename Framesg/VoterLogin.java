@@ -98,50 +98,60 @@ public class VoterLogin extends JFrame implements ActionListener {
                 return;
             }
 
-            // Check if voter exists
-            if (!ElectionData.voterIdExists(voterId)) {
-                int choice = JOptionPane.showConfirmDialog(this,
-                    "Voter ID '" + voterId + "' not found.\n\n" +
-                    "Do you want to register as a new voter?",
-                    "Voter Not Found",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.QUESTION_MESSAGE);
-                    
-                if (choice == JOptionPane.YES_OPTION) {
-                    setVisible(false);
-                    new VoterRegistration(parentFrame).setVisible(true);
+            try {
+                // Check if voter exists
+                if (!ElectionData.voterIdExists(voterId)) {
+                    int choice = JOptionPane.showConfirmDialog(this,
+                        "Voter ID '" + voterId + "' not found.\n\n" +
+                        "Do you want to register as a new voter?",
+                        "Voter Not Found",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.QUESTION_MESSAGE);
+                        
+                    if (choice == JOptionPane.YES_OPTION) {
+                        setVisible(false);
+                        new VoterRegistration(parentFrame).setVisible(true);
+                    }
+                    return;
                 }
-                return;
-            }
 
-            // Check if voter is registered (has password)
-            if (!ElectionData.isVoterRegistered(voterId)) {
-                int choice = JOptionPane.showConfirmDialog(this,
-                    "Voter ID '" + voterId + "' is not registered yet.\n\n" +
-                    "You need to set a password first.\n" +
-                    "Go to registration page?",
-                    "Not Registered",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE);
-                    
-                if (choice == JOptionPane.YES_OPTION) {
-                    setVisible(false);
-                    new VoterRegistration(parentFrame).setVisible(true);
+                // Check if voter is registered (has password)
+                if (!ElectionData.isVoterRegistered(voterId)) {
+                    int choice = JOptionPane.showConfirmDialog(this,
+                        "Voter ID '" + voterId + "' is not registered yet.\n\n" +
+                        "You need to set a password first.\n" +
+                        "Go to registration page?",
+                        "Not Registered",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE);
+                        
+                    if (choice == JOptionPane.YES_OPTION) {
+                        setVisible(false);
+                        new VoterRegistration(parentFrame).setVisible(true);
+                    }
+                    return;
                 }
-                return;
-            }
 
-            // Validate login
-            if (!ElectionData.validateVoter(voterId, password)) {
-                JOptionPane.showMessageDialog(this, "Invalid Password!");
-                return;
-            }
+                // Validate login
+                if (!ElectionData.validateVoter(voterId, password)) {
+                    JOptionPane.showMessageDialog(this, "Invalid Password!");
+                    return;
+                }
 
-            if (ElectionData.hasVoted(voterId)) {
-                JOptionPane.showMessageDialog(this, "You have already voted. Thank you!");
-            } else {
-                setVisible(false);
-                new VoterVoting(voterId, this).setVisible(true);
+                if (ElectionData.hasVoted(voterId)) {
+                    JOptionPane.showMessageDialog(this, "You have already voted. Thank you!");
+                } else {
+                    setVisible(false);
+                    new VoterVoting(voterId, this).setVisible(true);
+                }
+            } catch (Exception ex) {
+                System.err.println("❌ Login error: " + ex.getMessage());
+                ex.printStackTrace();
+                JOptionPane.showMessageDialog(this, 
+                    "Login error: " + ex.getMessage() + "\n\n" +
+                    "Please try again or contact administrator.",
+                    "Login Error",
+                    JOptionPane.ERROR_MESSAGE);
             }
 
         } else if (e.getSource() == backButton) {

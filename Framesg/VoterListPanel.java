@@ -65,9 +65,7 @@ public class VoterListPanel extends JPanel {
         int index = 0;
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
-            int lineNumber = 0;
             while ((line = reader.readLine()) != null && index < count) {
-                lineNumber++;
                 if (line.trim().isEmpty()) continue;
                 String[] parts = line.split(":", -1);
                 if (parts.length >= 4) {

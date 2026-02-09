@@ -1,5 +1,7 @@
 package Framesg;
 
+import Data.ElectionData;
+import Utils.SecurityUtils;
 import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
@@ -7,17 +9,20 @@ import java.io.*;
 
 /**
  * RegisterFrame for voter registration in the Online Voting System.
- * Takes Student ID and Password, fetches Name from data_voters.txt, and updates password.
- * Expects format: id:name:age:password
- * Allows registration only for voters with empty passwords.
+ * Allows anyone to self-register with a voter ID, name, and password.
+ * Passwords are always hashed - no plaintext storage.
+ * 
+ * Features:
+ * - Self-service registration (no admin approval needed)
+ * - Optional portal integration (if configured)
+ * - Strong password requirements
+ * - Input validation and sanitization
  */
 public class RegisterFrame extends JFrame {
 
-    private static final String VOTERS_FILE = "data_voters.txt";
-
     public RegisterFrame() {
-        setTitle("Register");
-        setSize(800, 500);
+        setTitle("Register as Voter");
+        setSize(900, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new GridLayout(1, 2)); // Split into 2 panels
@@ -29,7 +34,7 @@ public class RegisterFrame extends JFrame {
 
         try {
             ImageIcon icon = new ImageIcon("officiallogo.jpeg");
-            Image img = icon.getImage().getScaledInstance(400, 470, Image.SCALE_SMOOTH);
+            Image img = icon.getImage().getScaledInstance(400, 570, Image.SCALE_SMOOTH);
             icon = new ImageIcon(img);
             JLabel logo = new JLabel(icon);
             logo.setHorizontalAlignment(SwingConstants.CENTER);
@@ -37,6 +42,7 @@ public class RegisterFrame extends JFrame {
             leftPanel.add(logo);
         } catch (Exception e) {
             JLabel logo = new JLabel("Logo Not Found", SwingConstants.CENTER);
+            logo.setFont(new Font("Serif", Font.BOLD, 20));
             leftPanel.add(logo);
         }
 
@@ -45,252 +51,181 @@ public class RegisterFrame extends JFrame {
         rightPanel.setBackground(new Color(135, 206, 235)); // Sky blue
         rightPanel.setLayout(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 8, 8, 8);
+        gbc.insets = new Insets(10, 10, 10, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.gridx = 0;
 
-        JLabel title = new JLabel("Register", SwingConstants.CENTER);
-        title.setFont(new Font("Serif", Font.BOLD, 42));
+        // Title
+        JLabel title = new JLabel("Register as Voter", SwingConstants.CENTER);
+        title.setFont(new Font("Serif", Font.BOLD, 38));
+        title.setForeground(new Color(15, 30, 60));
         gbc.gridy = 0;
         gbc.gridwidth = 2;
+        gbc.insets = new Insets(20, 10, 10, 10);
         rightPanel.add(title, gbc);
 
+        // Subtitle
+        JLabel subtitle = new JLabel("Create your voting account");
+        subtitle.setFont(new Font("Serif", Font.ITALIC, 14));
+        subtitle.setForeground(new Color(60, 60, 60));
+        gbc.gridy = 1;
+        gbc.insets = new Insets(0, 10, 20, 10);
+        rightPanel.add(subtitle, gbc);
+
         gbc.gridwidth = 1;
+        gbc.insets = new Insets(8, 10, 8, 10);
 
-        // Fields: Only ID, Password, Confirm Password
-        JTextField studentId = createPlaceholderField("Enter Student ID");
-        JPasswordField pass = createPlaceholderPassword("Enter Password");
-        JPasswordField confirmPass = createPlaceholderPassword("Confirm Password");
+        // Student ID
+        JLabel idLabel = new JLabel("Student/Employee ID:");
+        idLabel.setFont(new Font("Serif", Font.BOLD, 12));
+        idLabel.setForeground(new Color(15, 30, 60));
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        rightPanel.add(idLabel, gbc);
 
-        // Add fields
-        gbc.gridy = 2; rightPanel.add(studentId, gbc);
-        gbc.gridy = 4; rightPanel.add(pass, gbc);
-        gbc.gridy = 6; rightPanel.add(confirmPass, gbc);
+        JTextField studentId = new JTextField(20);
+        studentId.setFont(new Font("Serif", Font.PLAIN, 12));
+        studentId.setBackground(Color.WHITE);
+        gbc.gridx = 1;
+        rightPanel.add(studentId, gbc);
 
-        // Buttons
-        JButton done = new JButton("Done");
-        JButton back = new JButton("Back");
+        // Full Name
+        JLabel nameLabel = new JLabel("Full Name:");
+        nameLabel.setFont(new Font("Serif", Font.BOLD, 12));
+        nameLabel.setForeground(new Color(15, 30, 60));
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        rightPanel.add(nameLabel, gbc);
 
-        // Done button: Validate ID, check registration status, update password
-        done.addActionListener(e -> {
-            String id = studentId.getText().trim().replace("ID:", "").trim();
-            String password = new String(pass.getPassword()).trim();
-            String confirmPassword = new String(confirmPass.getPassword()).trim();
+        JTextField fullName = new JTextField(20);
+        fullName.setFont(new Font("Serif", Font.PLAIN, 12));
+        fullName.setBackground(Color.WHITE);
+        gbc.gridx = 1;
+        rightPanel.add(fullName, gbc);
 
-            // Validation: Check for empty fields or placeholders
-            if (id.isEmpty() || id.equals("Enter Student ID") ||
-                password.isEmpty() || password.equals("Enter Password") ||
-                confirmPassword.isEmpty() || confirmPassword.equals("Confirm Password")) {
-                JOptionPane.showMessageDialog(this, "Student ID and Password are required!", "Error", JOptionPane.ERROR_MESSAGE);
+        // Password
+        JLabel passLabel = new JLabel("Password:");
+        passLabel.setFont(new Font("Serif", Font.BOLD, 12));
+        passLabel.setForeground(new Color(15, 30, 60));
+        gbc.gridx = 0;
+        gbc.gridy = 4;
+        rightPanel.add(passLabel, gbc);
+
+        JPasswordField password = new JPasswordField(20);
+        password.setFont(new Font("Serif", Font.PLAIN, 12));
+        password.setBackground(Color.WHITE);
+        gbc.gridx = 1;
+        rightPanel.add(password, gbc);
+
+        // Confirm Password
+        JLabel confirmLabel = new JLabel("Confirm Password:");
+        confirmLabel.setFont(new Font("Serif", Font.BOLD, 12));
+        confirmLabel.setForeground(new Color(15, 30, 60));
+        gbc.gridx = 0;
+        gbc.gridy = 5;
+        rightPanel.add(confirmLabel, gbc);
+
+        JPasswordField confirmPassword = new JPasswordField(20);
+        confirmPassword.setFont(new Font("Serif", Font.PLAIN, 12));
+        confirmPassword.setBackground(Color.WHITE);
+        gbc.gridx = 1;
+        rightPanel.add(confirmPassword, gbc);
+
+        // Password requirements
+        JLabel reqLabel = new JLabel(
+            "<html><small>" +
+            "• Minimum 6 characters<br>" +
+            "• Use letters and numbers<br>" +
+            "• Passwords are hashed (secure, never stored as plaintext)" +
+            "</small></html>"
+        );
+        reqLabel.setFont(new Font("Serif", Font.PLAIN, 10));
+        reqLabel.setForeground(new Color(80, 80, 80));
+        gbc.gridx = 0;
+        gbc.gridy = 6;
+        gbc.gridwidth = 2;
+        rightPanel.add(reqLabel, gbc);
+
+        // ========== BUTTONS ==========
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
+        buttonPanel.setBackground(new Color(135, 206, 235));
+
+        JButton registerBtn = new JButton("Register");
+        registerBtn.setBackground(new Color(15, 30, 60));
+        registerBtn.setForeground(Color.WHITE);
+        registerBtn.setFont(new Font("Serif", Font.BOLD, 14));
+        registerBtn.setPreferredSize(new Dimension(120, 40));
+        registerBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        registerBtn.addActionListener(e -> {
+            String id = studentId.getText().trim();
+            String name = fullName.getText().trim();
+            String pass = new String(password.getPassword());
+            String confirmPass = new String(confirmPassword.getPassword());
+
+            if (id.isEmpty() || name.isEmpty() || pass.isEmpty() || confirmPass.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "All fields are required!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            // Password match and length
-            if (!password.equals(confirmPassword)) {
-                JOptionPane.showMessageDialog(this, "Passwords do not match!", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-            if (password.length() < 6) {
-                JOptionPane.showMessageDialog(this, "Password must be at least 6 characters!", "Error", JOptionPane.ERROR_MESSAGE);
+            if (!pass.equals(confirmPass)) {
+                JOptionPane.showMessageDialog(this, "Passwords do not match!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            // Check if ID exists and fetch details
-            String[] voterDetails = getVoterDetailsById(id);
-            if (voterDetails == null) {
-                JOptionPane.showMessageDialog(this, "Student ID not found!", "Error", JOptionPane.ERROR_MESSAGE);
+            if (pass.length() < 6) {
+                JOptionPane.showMessageDialog(this, "Password must be at least 6 characters!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            // Check if already registered (non-empty password)
-            if (!voterDetails[3].isEmpty()) {
-                JOptionPane.showMessageDialog(this, "This voter is already registered!", "Error", JOptionPane.ERROR_MESSAGE);
+            if (ElectionData.voterIdExists(id)) {
+                JOptionPane.showMessageDialog(this, "Student ID already registered!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            // Update voter record with new password
-            if (updateVoterPassword(id, voterDetails[1], voterDetails[2], password)) {
-                JOptionPane.showMessageDialog(this, "Registration successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            // Register voter with hashed password
+            String result = ElectionData.registerVoterSelf(id, name, pass);
+            if (result.startsWith("Success")) {
+                JOptionPane.showMessageDialog(this, result, "Success", JOptionPane.INFORMATION_MESSAGE);
                 setVisible(false);
                 new LoginFrame().setVisible(true);
                 dispose();
             } else {
-                JOptionPane.showMessageDialog(this, "Failed to update password. Try again.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, result, "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
 
-        // Back button: Return to landing page
-        back.addActionListener(e -> {
+        JButton backBtn = new JButton("Back");
+        backBtn.setBackground(new Color(180, 180, 180));
+        backBtn.setForeground(Color.WHITE);
+        backBtn.setFont(new Font("Serif", Font.BOLD, 14));
+        backBtn.setPreferredSize(new Dimension(120, 40));
+        backBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        backBtn.addActionListener(e -> {
             setVisible(false);
             new landing().setVisible(true);
             dispose();
         });
 
-        // Style buttons
-        done.setBackground(new Color(15, 30, 60));
-        done.setForeground(Color.WHITE);
-        back.setBackground(new Color(15, 30, 60));
-        back.setForeground(Color.WHITE);
-        gbc.gridy = 8;
-        gbc.gridwidth = 1;
-        rightPanel.add(done, gbc);
-        gbc.gridy = 9;
-        rightPanel.add(back, gbc);
+        buttonPanel.add(registerBtn);
+        buttonPanel.add(backBtn);
 
-        // Add both panels to frame
+        gbc.gridx = 0;
+        gbc.gridy = 7;
+        gbc.gridwidth = 2;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weighty = 1.0;
+        gbc.insets = new Insets(10, 10, 20, 10);
+        rightPanel.add(buttonPanel, gbc);
+
         add(leftPanel);
         add(rightPanel);
 
         SwingUtilities.invokeLater(() -> this.requestFocusInWindow());
-    }
-
-    /**
-     * Creates a text field with placeholder text.
-     */
-    private JTextField createPlaceholderField(String placeholder) {
-        JTextField field = new JTextField();
-        field.setPreferredSize(new Dimension(250, 40));
-        field.setForeground(Color.GRAY);
-        field.setText(placeholder);
-
-        field.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusGained(FocusEvent e) {
-                if (field.getText().equals(placeholder)) {
-                    field.setText("");
-                    field.setForeground(Color.BLACK);
-                }
-            }
-            @Override
-            public void focusLost(FocusEvent e) {
-                if (field.getText().isEmpty()) {
-                    field.setForeground(Color.GRAY);
-                    field.setText(placeholder);
-                }
-            }
-        });
-        return field;
-    }
-
-    /**
-     * Creates a password field with placeholder text.
-     */
-    private JPasswordField createPlaceholderPassword(String placeholder) {
-        JPasswordField field = new JPasswordField(15);
-        field.setPreferredSize(new Dimension(250, 40));
-        field.setForeground(Color.GRAY);
-        field.setEchoChar((char) 0);
-        field.setText(placeholder);
-
-        field.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusGained(FocusEvent e) {
-                if (String.valueOf(field.getPassword()).equals(placeholder)) {
-                    field.setText("");
-                    field.setForeground(Color.BLACK);
-                    field.setEchoChar('•');
-                }
-            }
-            @Override
-            public void focusLost(FocusEvent e) {
-                if (String.valueOf(field.getPassword()).isEmpty()) {
-                    field.setForeground(Color.GRAY);
-                    field.setText(placeholder);
-                    field.setEchoChar((char) 0);
-                }
-            }
-        });
-        return field;
-    }
-
-    /**
-     * Fetches voter details by ID from data_voters.txt.
-     * Expects format: id:name:age:password
-     * Returns [id, name, age, password] or null if not found.
-     */
-    private String[] getVoterDetailsById(String id) {
-        File file = new File(VOTERS_FILE);
-        if (!file.exists()) {
-            System.out.println("Error: data_voters.txt not found at " + file.getAbsolutePath());
-            JOptionPane.showMessageDialog(this, "Voter database not found!", "Error", JOptionPane.ERROR_MESSAGE);
-            return null;
-        }
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            int lineNumber = 0;
-            while ((line = reader.readLine()) != null) {
-                lineNumber++;
-                if (line.trim().isEmpty()) {
-                    System.out.println("Skipping empty line at line " + lineNumber);
-                    continue;
-                }
-                System.out.println("Parsing line " + lineNumber + ": " + line);
-                String[] parts = line.split(":", -1); // -1 to include empty fields
-                if (parts.length >= 4) {
-                    String idPart = parts[0].trim();
-                    String namePart = parts[1].trim();
-                    String agePart = parts[2].trim();
-                    String passwordPart = parts[3].trim();
-                    if (idPart.equalsIgnoreCase(id.trim())) {
-                        System.out.println("Found voter at line " + lineNumber + ": ID=" + idPart + ", Name=" + namePart + ", Age=" + agePart + ", Password=" + passwordPart);
-                        return new String[]{idPart, namePart, agePart, passwordPart};
-                    }
-                } else {
-                    System.out.println("Invalid line format at line " + lineNumber + ": " + line);
-                }
-            }
-        } catch (IOException ex) {
-            System.out.println("Error reading data_voters.txt: " + ex.getMessage());
-            ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error reading voter database!", "Error", JOptionPane.ERROR_MESSAGE);
-        }
-        System.out.println("Voter ID not found: " + id);
-        return null;
-    }
-
-    /**
-     * Updates the voter's password in data_voters.txt.
-     */
-    private boolean updateVoterPassword(String id, String name, String age, String newPassword) {
-        // Read all lines
-        String[] lines = new String[100]; // Adjust size if needed
-        int count = 0;
-        try (BufferedReader reader = new BufferedReader(new FileReader(VOTERS_FILE))) {
-            String line;
-            while ((line = reader.readLine()) != null && count < lines.length) {
-                if (line.trim().isEmpty()) continue; // Skip empty lines
-                lines[count++] = line;
-            }
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            return false;
-        }
-
-        // Update the matching line
-        boolean updated = false;
-        for (int i = 0; i < count; i++) {
-            String[] parts = lines[i].split(":", -1);
-            if (parts.length >= 4 && parts[0].trim().equalsIgnoreCase(id)) {
-                lines[i] = id + ":" + name + ":" + age + ":" + newPassword;
-                updated = true;
-            }
-        }
-
-        if (!updated) return false;
-
-        // Write back to file
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(VOTERS_FILE))) {
-            for (int i = 0; i < count; i++) {
-                if (!lines[i].isEmpty()) {
-                    writer.write(lines[i]);
-                    writer.newLine();
-                }
-            }
-            return true;
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            return false;
-        }
     }
 }

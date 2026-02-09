@@ -1,0 +1,1915 @@
+package Framesg;
+
+import Data.SqlAdminManager;
+import Data.SqlElectionDataManager;
+import Data.ElectionScheduler;
+import Entities.Nominee;
+import Entities.Voter;
+import Utils.Theme;
+import Utils.AdminRole;
+import java.awt.*;
+import java.awt.event.*;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import javax.swing.*;
+
+/**
+ * Updated Admin Dashboard with SQL backend and role-based access control.
+ * Different roles see different features based on their permissions.
+ * NO SUPERADMIN - All roles have predefined selective permissions.
+ */
+public class AdminDashboard extends JFrame implements ActionListener {
+    
+    private String adminId;
+    private String adminRole;
+    private JFrame parentFrame;
+    private JPanel mainPanel;
+    private JLabel adminLabel;
+
+    public AdminDashboard(String adminId, JFrame parentFrame) {
+        this.adminId = adminId;
+        this.parentFrame = parentFrame;
+        this.adminRole = SqlAdminManager.getRoleById(adminId);
+        
+        setupWindow();
+        initTopBar();
+        initMainPanel();
+        setVisible(true);
+    }
+
+    private void setupWindow() {
+        String adminName = SqlAdminManager.getAdminNameById(adminId);
+        setTitle("Election Admin Dashboard - " + (adminName != null ? adminName : adminId));
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(Theme.WINDOW_WIDTH, Theme.WINDOW_HEIGHT);
+        setLocationRelativeTo(null);
+        setLayout(new BorderLayout());
+        getContentPane().setBackground(Theme.BACKGROUND_WHITE);
+    }
+
+    private void initTopBar() {
+        JPanel topBar = new JPanel(new BorderLayout());
+        topBar.setBackground(Theme.PRIMARY_BLUE_DARK);
+        topBar.setPreferredSize(new Dimension(getWidth(), Theme.TOPBAR_HEIGHT));
+        topBar.setBorder(Theme.getTopBarBorder());
+
+        String adminName = SqlAdminManager.getAdminNameById(adminId);
+        String roleDescription = AdminRole.getRoleDescription(adminRole);
+        
+        if (adminName == null) adminName = "Administrator";
+        
+        adminLabel = new JLabel("👤 " + adminName + " | " + adminRole);
+        adminLabel.setToolTipText(roleDescription);
+        adminLabel.setForeground(Theme.TEXT_WHITE);
+        adminLabel.setFont(Theme.BODY_BOLD_FONT);
+        topBar.add(adminLabel, BorderLayout.WEST);
+
+        JButton logoutButton = new JButton("Logout");
+        logoutButton.setBackground(Theme.PRIMARY_BLUE);
+        logoutButton.setForeground(Theme.TEXT_WHITE);
+        logoutButton.setFont(Theme.BODY_FONT);
+        logoutButton.setFocusPainted(false);
+        logoutButton.addActionListener(e -> {
+            setVisible(false);
+            parentFrame.setVisible(true);
+        });
+        topBar.add(logoutButton, BorderLayout.EAST);
+
+        add(topBar, BorderLayout.NORTH);
+    }
+
+    private void initMainPanel() {
+        mainPanel = new JPanel();
+        mainPanel.setBackground(Theme.BACKGROUND_WHITE);
+        mainPanel.setLayout(new GridLayout(0, 2, 20, 20));
+        mainPanel.setBorder(Theme.getMainPanelBorder());
+
+        // Show cards only if admin has permissions
+        
+        // Voter Management Card - VoterManager only
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_VOTER) || 
+            AdminRole.hasPermission(adminRole, AdminRole.PERM_DELETE_VOTER)) {
+            mainPanel.add(createCard("👥 Voter Management", 
+                new String[]{"Add voters", "View voter list", "Delete voters", "Manage voter registration"}, 
+                "Manage Voters", Theme.SUCCESS_GREEN));
+        }
+
+        // Nominee Management Card - NomineeManager only
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_NOMINEE) || 
+            AdminRole.hasPermission(adminRole, AdminRole.PERM_DELETE_NOMINEE)) {
+            mainPanel.add(createCard("🗳️ Nominee Management", 
+                new String[]{"Add nominees", "View nominee list", "Edit nominees", "Delete nominees"}, 
+                "Manage Nominees", Theme.PRIMARY_BLUE));
+        }
+
+        // Election Management Card - ElectionManager only
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_CONFIGURE_ELECTION)) {
+            mainPanel.add(createCard("💼 Election Management", 
+                new String[]{"Configure election", "Activate/deactivate", "View election status", "Manage voting schedule"}, 
+                "Manage Election", Theme.PRIMARY_BLUE));
+        }
+
+        // Live Results Card - Visible to ElectionManager and ReportViewer
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_RESULTS)) {
+            mainPanel.add(createCard("📊 Live Results", 
+                new String[]{"Real-time vote counts", "Current standings", "Vote distribution", "Turnout statistics"}, 
+                "View Live Results", Theme.WARNING_ORANGE));
+        }
+
+        // Voter Status Card - ElectionManager only (monitoring)
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_VOTER) &&
+            AdminRole.hasPermission(adminRole, AdminRole.PERM_CONFIGURE_ELECTION)) {
+            mainPanel.add(createCard("👀 Voter Status", 
+                new String[]{"Who has voted", "Who hasn't voted", "Participation tracking", "Voter engagement"}, 
+                "Check Voter Status", Theme.MAGENTA));
+        }
+
+        // Audit Logs Card - AuditViewer only
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_AUDIT_LOG)) {
+            mainPanel.add(createCard("📋 Audit Logs", 
+                new String[]{"View all admin actions", "Search audit trail", "Export activity reports"}, 
+                "View Audit Logs", Theme.PRIMARY_BLUE));
+        }
+
+        // If admin has no permissions, show warning
+        if (mainPanel.getComponentCount() == 0) {
+            JLabel noAccessLabel = new JLabel("❌ No features available for your role: " + adminRole);
+            noAccessLabel.setFont(Theme.SUBHEADER_FONT);
+            noAccessLabel.setForeground(Theme.ERROR_RED);
+            mainPanel.add(noAccessLabel);
+        }
+
+        JScrollPane scrollPane = new JScrollPane(mainPanel);
+        add(scrollPane, BorderLayout.CENTER);
+    }
+
+    private JPanel createCard(String title, String[] bullets, String buttonText, Color accentColor) {
+        JPanel card = new JPanel();
+        card.setLayout(new BorderLayout(10, 10));
+        card.setBackground(Theme.CARD_WHITE);
+        card.setBorder(Theme.getCardBorder(accentColor));
+
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(Theme.SUBHEADER_FONT);
+        titleLabel.setForeground(Theme.TEXT_DARK);
+        card.add(titleLabel, BorderLayout.NORTH);
+
+        JPanel bulletPanel = new JPanel();
+        bulletPanel.setLayout(new BoxLayout(bulletPanel, BoxLayout.Y_AXIS));
+        bulletPanel.setBackground(Theme.CARD_WHITE);
+        
+        for (String bullet : bullets) {
+            JLabel bulletLabel = new JLabel("• " + bullet);
+            bulletLabel.setFont(Theme.BODY_FONT);
+            bulletLabel.setForeground(Theme.TEXT_MEDIUM);
+            bulletPanel.add(bulletLabel);
+        }
+        card.add(bulletPanel, BorderLayout.CENTER);
+
+        JButton actionButton = new JButton(buttonText);
+        actionButton.setBackground(accentColor);
+        actionButton.setForeground(Theme.TEXT_WHITE);
+        actionButton.setFont(Theme.BODY_BOLD_FONT);
+        actionButton.setFocusPainted(false);
+        actionButton.addActionListener(this);
+        actionButton.setActionCommand(buttonText);
+        
+        // Add hover effect
+        actionButton.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) {
+                actionButton.setBackground(Theme.getDarkerColor(accentColor));
+            }
+            public void mouseExited(MouseEvent e) {
+                actionButton.setBackground(accentColor);
+            }
+        });
+        
+        card.add(actionButton, BorderLayout.SOUTH);
+
+        return card;
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        String command = e.getActionCommand();
+
+        switch (command) {
+            case "Manage Voters":
+                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_VOTER) || 
+                    AdminRole.hasPermission(adminRole, AdminRole.PERM_DELETE_VOTER)) {
+                    showVoterManagement();
+                } else {
+                    JOptionPane.showMessageDialog(this, "❌ You don't have permission to manage voters");
+                }
+                break;
+            case "Manage Nominees":
+                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_NOMINEE)) {
+                    showNomineeManagement();
+                } else {
+                    JOptionPane.showMessageDialog(this, "❌ You don't have permission to manage nominees");
+                }
+                break;
+            case "Manage Election":
+                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_CONFIGURE_ELECTION)) {
+                    showElectionSetup();
+                } else {
+                    JOptionPane.showMessageDialog(this, "❌ You don't have permission to manage elections");
+                }
+                break;
+            case "View Live Results":
+                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_RESULTS)) {
+                    showLiveResults();
+                } else {
+                    JOptionPane.showMessageDialog(this, "❌ You don't have permission to view results");
+                }
+                break;
+            case "Check Voter Status":
+                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_VOTER)) {
+                    showVoterStatus();
+                } else {
+                    JOptionPane.showMessageDialog(this, "❌ You don't have permission to check voter status");
+                }
+                break;
+            case "View Audit Logs":
+                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_AUDIT_LOG)) {
+                    showAuditLogs();
+                } else {
+                    JOptionPane.showMessageDialog(this, "❌ You don't have permission to view audit logs");
+                }
+                break;
+        }
+    }
+
+    private void showVoterManagement() {
+        JDialog dialog = new JDialog(this, "Voter Management", true);
+        dialog.setSize(600, 400);
+        dialog.setLocationRelativeTo(this);
+        
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_VOTER)) {
+            JButton addBtn = new JButton("Add Voter");
+            addBtn.addActionListener(e -> addVoterDialog());
+            buttonPanel.add(addBtn);
+        }
+        
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_DELETE_VOTER)) {
+            JButton deleteBtn = new JButton("Delete Voter");
+            deleteBtn.addActionListener(e -> deleteVoterDialog());
+            buttonPanel.add(deleteBtn);
+        }
+        
+        panel.add(buttonPanel, BorderLayout.NORTH);
+        
+        // Voter list
+        java.util.List<Voter> voters = SqlElectionDataManager.getAllVoters();
+        String[] columnNames = {"Voter ID", "Name", "Registered", "Voted"};
+        Object[][] data = new Object[voters.size()][4];
+        
+        for (int i = 0; i < voters.size(); i++) {
+            Voter v = voters.get(i);
+            data[i][0] = v.getId();
+            data[i][1] = v.getName();
+            data[i][2] = SqlElectionDataManager.isVoterRegistered(v.getId()) ? "✓" : "✗";
+            data[i][3] = SqlElectionDataManager.hasVoterVoted(v.getId()) ? "✓" : "✗";
+        }
+        
+        JTable table = new JTable(data, columnNames);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        
+        JScrollPane scrollPane = new JScrollPane(table);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        dialog.add(panel);
+        dialog.setVisible(true);
+    }
+
+    private void addVoterDialog() {
+        JDialog dialog = new JDialog(this, "Add New Voter", true);
+        dialog.setSize(400, 200);
+        dialog.setLocationRelativeTo(this);
+        
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(10, 10, 10, 10);
+        
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        panel.add(new JLabel("Voter ID:"), gbc);
+        gbc.gridx = 1;
+        JTextField idField = new JTextField(20);
+        panel.add(idField, gbc);
+        
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        panel.add(new JLabel("Name:"), gbc);
+        gbc.gridx = 1;
+        JTextField nameField = new JTextField(20);
+        panel.add(nameField, gbc);
+        
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.gridwidth = 2;
+        JButton addBtn = new JButton("Add Voter");
+        addBtn.addActionListener(e -> {
+            String voterId = idField.getText().trim();
+            String voterName = nameField.getText().trim();
+            
+            if (voterId.isEmpty() || voterName.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "All fields are required");
+                return;
+            }
+            
+            if (SqlElectionDataManager.addVoter(voterId, voterName)) {
+                JOptionPane.showMessageDialog(dialog, "✅ Voter added successfully!");
+                SqlAdminManager.logAdminAction(adminId, "ADD_VOTER", "Added voter: " + voterId);
+                dialog.dispose();
+            } else {
+                JOptionPane.showMessageDialog(dialog, "❌ Failed to add voter");
+            }
+        });
+        panel.add(addBtn, gbc);
+        
+        dialog.add(panel);
+        dialog.setVisible(true);
+    }
+
+    private void deleteVoterDialog() {
+        String voterId = JOptionPane.showInputDialog(this, "Enter Voter ID to delete:");
+        if (voterId == null || voterId.isEmpty()) return;
+        
+        int confirm = JOptionPane.showConfirmDialog(this, 
+            "Are you sure you want to delete voter: " + voterId + "?",
+            "Confirm Delete", JOptionPane.YES_NO_OPTION);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            if (SqlElectionDataManager.deleteVoter(voterId)) {
+                JOptionPane.showMessageDialog(this, "✅ Voter deleted successfully!");
+                SqlAdminManager.logAdminAction(adminId, "DELETE_VOTER", "Deleted voter: " + voterId);
+            } else {
+                JOptionPane.showMessageDialog(this, "❌ Failed to delete voter");
+            }
+        }
+    }
+
+    private void showNomineeManagement() {
+        JDialog dialog = new JDialog(this, "Nominee Management", true);
+        dialog.setSize(600, 400);
+        dialog.setLocationRelativeTo(this);
+        
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_NOMINEE)) {
+            JButton addBtn = new JButton("Add Nominee");
+            addBtn.addActionListener(e -> addNomineeDialog());
+            buttonPanel.add(addBtn);
+        }
+        
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_DELETE_NOMINEE)) {
+            JButton deleteBtn = new JButton("Delete Nominee");
+            deleteBtn.addActionListener(e -> deleteNomineeDialog());
+            buttonPanel.add(deleteBtn);
+        }
+        
+        panel.add(buttonPanel, BorderLayout.NORTH);
+        
+        // Nominee list
+        java.util.List<Nominee> nominees = SqlElectionDataManager.getAllNominees();
+        String[] columnNames = {"Nominee ID", "Name", "Party"};
+        Object[][] data = new Object[nominees.size()][3];
+        
+        for (int i = 0; i < nominees.size(); i++) {
+            Nominee n = nominees.get(i);
+            data[i][0] = n.getId();
+            data[i][1] = n.getName();
+            data[i][2] = n.getParty();
+        }
+        
+        JTable table = new JTable(data, columnNames);
+        JScrollPane scrollPane = new JScrollPane(table);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        dialog.add(panel);
+        dialog.setVisible(true);
+    }
+
+    private void addNomineeDialog() {
+        JDialog dialog = new JDialog(this, "Add New Nominee", true);
+        dialog.setSize(400, 250);
+        dialog.setLocationRelativeTo(this);
+        
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(10, 10, 10, 10);
+        
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        panel.add(new JLabel("Nominee ID:"), gbc);
+        gbc.gridx = 1;
+        JTextField idField = new JTextField(20);
+        panel.add(idField, gbc);
+        
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        panel.add(new JLabel("Name:"), gbc);
+        gbc.gridx = 1;
+        JTextField nameField = new JTextField(20);
+        panel.add(nameField, gbc);
+        
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        panel.add(new JLabel("Party:"), gbc);
+        gbc.gridx = 1;
+        JTextField partyField = new JTextField(20);
+        panel.add(partyField, gbc);
+        
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        gbc.gridwidth = 2;
+        JButton addBtn = new JButton("Add Nominee");
+        addBtn.addActionListener(e -> {
+            String nomineeId = idField.getText().trim();
+            String nomineeName = nameField.getText().trim();
+            String party = partyField.getText().trim();
+            
+            if (nomineeId.isEmpty() || nomineeName.isEmpty() || party.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "All fields are required");
+                return;
+            }
+            
+            if (SqlElectionDataManager.addNominee(nomineeId, nomineeName, party)) {
+                JOptionPane.showMessageDialog(dialog, "✅ Nominee added successfully!");
+                SqlAdminManager.logAdminAction(adminId, "ADD_NOMINEE", "Added nominee: " + nomineeId);
+                dialog.dispose();
+            } else {
+                JOptionPane.showMessageDialog(dialog, "❌ Failed to add nominee");
+            }
+        });
+        panel.add(addBtn, gbc);
+        
+        dialog.add(panel);
+        dialog.setVisible(true);
+    }
+
+    private void deleteNomineeDialog() {
+        String nomineeId = JOptionPane.showInputDialog(this, "Enter Nominee ID to delete:");
+        if (nomineeId == null || nomineeId.isEmpty()) return;
+        
+        int confirm = JOptionPane.showConfirmDialog(this, 
+            "Are you sure you want to delete nominee: " + nomineeId + "?",
+            "Confirm Delete", JOptionPane.YES_NO_OPTION);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            if (SqlElectionDataManager.deleteNominee(nomineeId)) {
+                JOptionPane.showMessageDialog(this, "✅ Nominee deleted successfully!");
+                SqlAdminManager.logAdminAction(adminId, "DELETE_NOMINEE", "Deleted nominee: " + nomineeId);
+            } else {
+                JOptionPane.showMessageDialog(this, "❌ Failed to delete nominee");
+            }
+        }
+    }
+
+    private void showElectionSetup() {
+        JOptionPane.showMessageDialog(this, "Election Management\n\nFeature for ElectionManager role\n(Manage voting schedule and election configuration)", 
+            "Election Setup", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void showLiveResults() {
+        JDialog dialog = new JDialog(this, "Live Election Results", true);
+        dialog.setSize(600, 400);
+        dialog.setLocationRelativeTo(this);
+        
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        Map<String, Integer> voteCounts = SqlElectionDataManager.getVoteCounts();
+        int totalVotes = SqlElectionDataManager.getTotalVotesCast();
+        int totalRegistered = SqlElectionDataManager.getTotalRegisteredVoters();
+        
+        StringBuilder results = new StringBuilder();
+        results.append("📊 ELECTION RESULTS\n");
+        results.append("===================\n\n");
+        results.append("Total Registered Voters: ").append(totalRegistered).append("\n");
+        results.append("Total Votes Cast: ").append(totalVotes).append("\n");
+        results.append("Turnout: ").append(String.format("%.2f%%", (totalRegistered > 0 ? totalVotes * 100.0 / totalRegistered : 0))).append("\n\n");
+        results.append("Vote Distribution:\n");
+        
+        for (Map.Entry<String, Integer> entry : voteCounts.entrySet()) {
+            results.append("• ").append(entry.getKey()).append(": ").append(entry.getValue()).append(" votes\n");
+        }
+        
+        JTextArea textArea = new JTextArea(results.toString());
+        textArea.setEditable(false);
+        textArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        dialog.add(panel);
+        dialog.setVisible(true);
+    }
+
+    private void showVoterStatus() {
+        JOptionPane.showMessageDialog(this, "Voter Status Tracking\n\nShowing: Who has voted\nWho hasn't voted\nParticipation metrics", 
+            "Voter Status", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void showAuditLogs() {
+        JOptionPane.showMessageDialog(this, "Audit Log Viewer\n\nShowing: All admin actions\nActivity tracking\nSystem events", 
+            "Audit Logs", JOptionPane.INFORMATION_MESSAGE);
+    }
+}
+
+    public AdminDashboard(String adminId, JFrame parentFrame) {
+        this.adminId = adminId;
+        this.parentFrame = parentFrame;
+        
+        setupWindow();
+        initTopBar();
+        initMainPanel();
+        setVisible(true);
+    }
+
+    private void setupWindow() {
+        setTitle("Election Admin Dashboard - " + adminId);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(Theme.WINDOW_WIDTH, Theme.WINDOW_HEIGHT);
+        setLocationRelativeTo(null);
+        setLayout(new BorderLayout());
+        getContentPane().setBackground(Theme.BACKGROUND_WHITE);
+    }
+
+    private void initTopBar() {
+        JPanel topBar = new JPanel(new BorderLayout());
+        topBar.setBackground(Theme.PRIMARY_BLUE_DARK);
+        topBar.setPreferredSize(new Dimension(getWidth(), Theme.TOPBAR_HEIGHT));
+        topBar.setBorder(Theme.getTopBarBorder());
+
+        String adminName = AdminData.getAdminNameById(adminId);
+        String adminRole = AdminData.getRoleById(adminId);
+        if (adminName == null) adminName = "Administrator";
+        if (adminRole == null) adminRole = "admin";
+        
+        JLabel adminLabel = new JLabel("👤 " + adminName + " (" + adminRole + ")");
+        adminLabel.setForeground(Theme.TEXT_WHITE);
+        adminLabel.setFont(Theme.BODY_BOLD_FONT);
+        topBar.add(adminLabel, BorderLayout.WEST);
+
+        JButton logoutButton = new JButton("Logout");
+        logoutButton.setBackground(Theme.PRIMARY_BLUE);
+        logoutButton.setForeground(Theme.TEXT_WHITE);
+        logoutButton.setFont(Theme.BODY_FONT);
+        logoutButton.setFocusPainted(false);
+        logoutButton.addActionListener(e -> {
+            setVisible(false);
+            parentFrame.setVisible(true);
+        });
+        topBar.add(logoutButton, BorderLayout.EAST);
+
+        add(topBar, BorderLayout.NORTH);
+    }
+
+    private void initMainPanel() {
+        mainPanel = new JPanel();
+        mainPanel.setBackground(Theme.BACKGROUND_WHITE);
+        mainPanel.setLayout(new GridLayout(0, 2, 20, 20));
+        mainPanel.setBorder(Theme.getMainPanelBorder());
+
+        // Election Setup Card
+        mainPanel.add(createCard("💼 Election Management", 
+            new String[]{"Configure election schedule", "Activate/deactivate election", "View election status"}, 
+            "Manage Election", Theme.PRIMARY_BLUE));
+
+        // Voter Management Card
+        mainPanel.add(createCard("👥 Voter Management", 
+            new String[]{"Add voters", "View voter list", "Delete voters"}, 
+            "Manage Voters", Theme.SUCCESS_GREEN));
+
+        // Nominee Management Card
+        mainPanel.add(createCard("🗳️ Nominee Management", 
+            new String[]{"Add nominees", "View nominee list", "Delete nominees"}, 
+            "Manage Nominees", Theme.PRIMARY_BLUE));
+
+        // Live Results Card
+        mainPanel.add(createCard("📊 Live Results", 
+            new String[]{"Real-time vote counts", "Current standings", "Turnout statistics"}, 
+            "View Live Results", Theme.WARNING_ORANGE));
+
+        // Voter Status Card
+        mainPanel.add(createCard("👀 Voter Status", 
+            new String[]{"Who has voted", "Who hasn't voted", "Participation tracking"}, 
+            "Check Voter Status", Theme.MAGENTA));
+
+        // Publish Results Card
+        mainPanel.add(createCard("📋 Publish Results", 
+            new String[]{"Generate final report", "Official results certificate"}, 
+            "Publish Final Results", Theme.ERROR_RED));
+
+        add(mainPanel, BorderLayout.CENTER);
+    }
+
+    private JPanel createCard(String title, String[] bullets, String buttonText, Color accentColor) {
+        JPanel card = new JPanel();
+        card.setLayout(new BorderLayout(10, 10));
+        card.setBackground(Theme.CARD_WHITE);
+        card.setBorder(Theme.getCardBorder(accentColor));
+
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(Theme.SUBHEADER_FONT);
+        titleLabel.setForeground(Theme.TEXT_DARK);
+        card.add(titleLabel, BorderLayout.NORTH);
+
+        JPanel bulletPanel = new JPanel();
+        bulletPanel.setLayout(new BoxLayout(bulletPanel, BoxLayout.Y_AXIS));
+        bulletPanel.setBackground(Theme.CARD_WHITE);
+        
+        for (String bullet : bullets) {
+            JLabel bulletLabel = new JLabel("• " + bullet);
+            bulletLabel.setFont(Theme.BODY_FONT);
+            bulletLabel.setForeground(Theme.TEXT_MEDIUM);
+            bulletPanel.add(bulletLabel);
+        }
+        card.add(bulletPanel, BorderLayout.CENTER);
+
+        JButton actionButton = new JButton(buttonText);
+        actionButton.setBackground(accentColor);
+        actionButton.setForeground(Theme.TEXT_WHITE);
+        actionButton.setFont(Theme.BODY_BOLD_FONT);
+        actionButton.setFocusPainted(false);
+        actionButton.addActionListener(this);
+        actionButton.setActionCommand(buttonText);
+        
+        // Add hover effect
+        actionButton.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) {
+                actionButton.setBackground(Theme.getDarkerColor(accentColor));
+            }
+            public void mouseExited(MouseEvent e) {
+                actionButton.setBackground(accentColor);
+            }
+        });
+        
+        card.add(actionButton, BorderLayout.SOUTH);
+
+        return card;
+    }
+
+    public void actionPerformed(ActionEvent e) {
+        String command = e.getActionCommand();
+
+        switch (command) {
+            case "Manage Election":
+                showElectionSetup();
+                break;
+            case "Manage Voters":
+                showVoterManagement();
+                break;
+            case "Manage Nominees":
+                showNomineeManagement();
+                break;
+            case "View Live Results":
+                showLiveResults();
+                break;
+            case "Check Voter Status":
+                showVoterStatus();
+                break;
+            case "Publish Final Results":
+                publishFinalResults();
+                break;
+        }
+    }
+
+    private void showElectionSetup() {
+        String[] options = {"Configure Schedule", "Activate/Deactivate", "View Status", 
+                           "View All Elections", "Delete Election", "Cancel"};
+        String choice = (String) JOptionPane.showInputDialog(this,
+            "Select Election Setup Option:",
+            "Election Management",
+            JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+        
+        if (choice == null) return;
+        
+        switch (choice) {
+            case "Configure Schedule":
+                configureElectionSchedule();
+                break;
+            case "Activate/Deactivate":
+                toggleElectionStatus();
+                break;
+            case "View Status":
+                viewElectionStatus();
+                break;
+            case "View All Elections":
+                viewAllElections();
+                break;
+            case "Delete Election":
+                deleteElectionDialog();
+                break;
+        }
+    }
+
+    private void configureElectionSchedule() {
+        JDialog configDialog = new JDialog(this, "Configure Election Schedule", true);
+        configDialog.setSize(500, 500);
+        configDialog.setLocationRelativeTo(this);
+        configDialog.setLayout(new BorderLayout());
+        
+        JPanel mainPanel = new JPanel(new GridBagLayout());
+        mainPanel.setBackground(Theme.BACKGROUND_WHITE);
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        
+        JLabel title = new JLabel("Election Schedule Configuration", SwingConstants.CENTER);
+        title.setFont(Theme.SUBHEADER_FONT);
+        title.setForeground(Theme.PRIMARY_BLUE);
+        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        mainPanel.add(title, gbc);
+        
+        // Election Name
+        JLabel nameLabel = new JLabel("Election Name:");
+        nameLabel.setFont(Theme.BODY_BOLD_FONT);
+        nameLabel.setForeground(Theme.TEXT_DARK);
+        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 1;
+        mainPanel.add(nameLabel, gbc);
+        
+        JTextField electionNameField = new JTextField("General Election", 20);
+        electionNameField.setFont(Theme.BODY_FONT);
+        gbc.gridx = 1;
+        mainPanel.add(electionNameField, gbc);
+        
+        // Start Date/Time
+        JLabel startLabel = new JLabel("Start Date/Time:");
+        startLabel.setFont(Theme.BODY_BOLD_FONT);
+        startLabel.setForeground(Theme.TEXT_DARK);
+        gbc.gridx = 0; gbc.gridy = 2;
+        mainPanel.add(startLabel, gbc);
+        
+        String currentTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        JTextField startDateField = new JTextField(currentTime, 20);
+        startDateField.setFont(Theme.BODY_FONT);
+        gbc.gridx = 1;
+        mainPanel.add(startDateField, gbc);
+        
+        // End Date/Time
+        JLabel endLabel = new JLabel("End Date/Time:");
+        endLabel.setFont(Theme.BODY_BOLD_FONT);
+        endLabel.setForeground(Theme.TEXT_DARK);
+        gbc.gridx = 0; gbc.gridy = 3;
+        mainPanel.add(endLabel, gbc);
+        
+        // Set default end time to 7 days from now
+        Date futureDate = new Date(System.currentTimeMillis() + 7 * 24 * 60 * 60 * 1000L);
+        String futureTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(futureDate);
+        JTextField endDateField = new JTextField(futureTime, 20);
+        endDateField.setFont(Theme.BODY_FONT);
+        gbc.gridx = 1;
+        mainPanel.add(endDateField, gbc);
+        
+        // Date format hint
+        JLabel formatHint = new JLabel("<html><b>📅 Date Format Required:</b> yyyy-MM-dd HH:mm:ss<br/>" +
+            "Examples: 2026-02-08 14:30:00 or 2026-12-31 23:59:59<br/>" +
+            "<small>Year: 4 digits | Month: 01-12 | Day: 01-31 | Hour: 00-23 | Minute: 00-59 | Second: 00-59</small></html>");
+        formatHint.setFont(Theme.BODY_FONT);
+        formatHint.setForeground(new Color(220, 100, 0)); // Orange for visibility
+        gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2;
+        mainPanel.add(formatHint, gbc);
+        
+        // Active status
+        gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
+        JCheckBox activeCheck = new JCheckBox("Activate election immediately", true);
+        activeCheck.setFont(Theme.BODY_FONT);
+        activeCheck.setBackground(Theme.BACKGROUND_WHITE);
+        mainPanel.add(activeCheck, gbc);
+        
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        buttonPanel.setBackground(Theme.BACKGROUND_WHITE);
+        
+        JButton saveButton = createStyledButton("Save Schedule", Theme.SUCCESS_GREEN);
+        saveButton.addActionListener(e -> {
+            String electionName = electionNameField.getText().trim();
+            String startDateStr = startDateField.getText().trim();
+            String endDateStr = endDateField.getText().trim();
+            boolean isActive = activeCheck.isSelected();
+            
+            if (electionName.isEmpty()) {
+                JOptionPane.showMessageDialog(configDialog, "Election name cannot be empty!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            // Validate date formats first
+            String startError = validateDateFormat(startDateStr, "Start date/time");
+            if (startError != null) {
+                JOptionPane.showMessageDialog(configDialog, "❌ " + startError, 
+                    "Invalid Start Date/Time", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            String endError = validateDateFormat(endDateStr, "End date/time");
+            if (endError != null) {
+                JOptionPane.showMessageDialog(configDialog, "❌ " + endError, 
+                    "Invalid End Date/Time", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            try {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                sdf.setLenient(false);
+                
+                Date startTime = sdf.parse(startDateStr);
+                Date endTime = sdf.parse(endDateStr);
+                
+                if (startTime.after(endTime)) {
+                    JOptionPane.showMessageDialog(configDialog, 
+                        "❌ Start time must be before end time!\n\n" +
+                        "Start: " + sdf.format(startTime) + "\n" +
+                        "End: " + sdf.format(endTime),
+                        "Logic Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                
+                if (ElectionScheduler.setElectionSchedule(electionName, startTime, endTime, isActive)) {
+                    JOptionPane.showMessageDialog(configDialog, 
+                        "✅ Election schedule saved successfully!\n\n" +
+                        "Election: " + electionName + "\n" +
+                        "Start: " + sdf.format(startTime) + "\n" +
+                        "End: " + sdf.format(endTime) + "\n" +
+                        "Status: " + (isActive ? "Active" : "Inactive"),
+                        "Success", JOptionPane.INFORMATION_MESSAGE);
+                    configDialog.dispose();
+                } else {
+                    JOptionPane.showMessageDialog(configDialog, "Failed to save election schedule!", 
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(configDialog, 
+                    "❌ Unexpected error: " + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+                ex.printStackTrace();
+            }
+        });
+        
+        JButton cancelButton = createStyledButton("Cancel", Theme.ERROR_RED);
+        cancelButton.addActionListener(e -> configDialog.dispose());
+        
+        buttonPanel.add(saveButton);
+        buttonPanel.add(cancelButton);
+        
+        configDialog.add(mainPanel, BorderLayout.CENTER);
+        configDialog.add(buttonPanel, BorderLayout.SOUTH);
+        configDialog.setVisible(true);
+    }
+
+    private void toggleElectionStatus() {
+        List<String> elections = ElectionScheduler.getAllElections();
+        
+        if (elections.isEmpty()) {
+            JOptionPane.showMessageDialog(this, 
+                "No elections found!\nPlease configure an election schedule first.",
+                "No Elections", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        // Let admin choose which election to toggle
+        String selectedElection = (String) JOptionPane.showInputDialog(this,
+            "Select election to toggle:", "Select Election",
+            JOptionPane.QUESTION_MESSAGE, null, elections.toArray(new String[0]), elections.get(0));
+        
+        if (selectedElection == null) return;
+        
+        ElectionScheduler.ElectionDetails details = ElectionScheduler.getElectionDetails(selectedElection);
+        if (details == null) {
+            JOptionPane.showMessageDialog(this, "Could not retrieve election details.", 
+                "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        String message = "<html><b>Election:</b> " + selectedElection + "<br>" +
+                        "<b>Current Status:</b> " + (details.isActive() ? "ACTIVE" : "INACTIVE") + "<br>" +
+                        "<b>Start:</b> " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(details.getStartTime()) + "<br>" +
+                        "<b>End:</b> " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(details.getEndTime()) + "<br><br>" +
+                        "Do you want to " + (details.isActive() ? "DEACTIVATE" : "ACTIVATE") + " this election?</html>";
+        
+        int confirm = JOptionPane.showConfirmDialog(this, message, 
+            "Toggle Election Status", JOptionPane.YES_NO_OPTION);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            boolean newStatus = !details.isActive();
+            if (ElectionScheduler.setElectionActive(selectedElection, newStatus)) {
+                String statusText = newStatus ? "activated" : "deactivated";
+                JOptionPane.showMessageDialog(this, 
+                    "✅ Election '" + selectedElection + "' has been " + statusText + " successfully!",
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, 
+                    "❌ Failed to update election status!",
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void viewElectionStatus() {
+        // Show detailed status of all elections
+        String status = ElectionScheduler.getAllElectionsStatus();
+        
+        JTextArea textArea = new JTextArea(status);
+        textArea.setEditable(false);
+        textArea.setFont(Theme.MONOSPACE_FONT);
+        textArea.setBackground(Theme.BACKGROUND_WHITE);
+        textArea.setForeground(Theme.TEXT_DARK);
+        
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(500, 300));
+        
+        // Check if voting is currently allowed
+        boolean votingAllowed = ElectionScheduler.isVotingAllowed();
+        String currentStatus = votingAllowed ? "✅ Voting is CURRENTLY ALLOWED" : "❌ Voting is CURRENTLY NOT ALLOWED";
+        
+        JLabel statusLabel = new JLabel(currentStatus);
+        statusLabel.setFont(Theme.BODY_BOLD_FONT);
+        statusLabel.setForeground(votingAllowed ? Theme.SUCCESS_GREEN : Theme.ERROR_RED);
+        
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.add(statusLabel, BorderLayout.NORTH);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        JOptionPane.showMessageDialog(this, panel, "Election Status", 
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void viewAllElections() {
+        List<String> elections = ElectionScheduler.getAllElections();
+
+        if (elections.isEmpty()) {
+            JOptionPane.showMessageDialog(this, 
+                "No elections have been configured yet.",
+                "No Elections", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        StringBuilder sb = new StringBuilder();
+        sb.append("═══════════════════════════════════════════════════\n");
+        sb.append("               ALL CONFIGURED ELECTIONS            \n");
+        sb.append("═══════════════════════════════════════════════════\n\n");
+        
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        int activeCount = 0;
+        
+        for (String electionName : elections) {
+            ElectionScheduler.ElectionDetails details = ElectionScheduler.getElectionDetails(electionName);
+            if (details != null) {
+                if (details.isActive()) activeCount++;
+                
+                sb.append("🏛️  ").append(electionName).append("\n");
+                sb.append("   Status: ").append(details.isActive() ? "✅ ACTIVE" : "❌ INACTIVE").append("\n");
+                sb.append("   Start:  ").append(sdf.format(details.getStartTime())).append("\n");
+                sb.append("   End:    ").append(sdf.format(details.getEndTime())).append("\n");
+                sb.append("   Created: ").append(sdf.format(details.getCreatedAt())).append("\n");
+                sb.append("───────────────────────────────────────────────\n");
+            }
+        }
+        
+        sb.append("\n═══════════════════════════════════════════════════\n");
+                sb.append("SUMMARY: ").append(activeCount).append("/").append(elections.size())
+                    .append(" elections active\n");
+        sb.append("═══════════════════════════════════════════════════\n");
+        
+        JTextArea textArea = new JTextArea(sb.toString());
+        textArea.setEditable(false);
+        textArea.setFont(Theme.MONOSPACE_FONT);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(600, 400));
+        
+        JOptionPane.showMessageDialog(this, scrollPane, "All Elections", 
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void deleteElectionDialog() {
+        List<String> elections = ElectionScheduler.getAllElections();
+
+        if (elections.isEmpty()) {
+            JOptionPane.showMessageDialog(this, 
+                "No elections to delete.",
+                "No Elections", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        String selectedElection = (String) JOptionPane.showInputDialog(this,
+            "Select election to delete:", "Delete Election",
+            JOptionPane.QUESTION_MESSAGE, null, elections.toArray(new String[0]), elections.get(0));
+        
+        if (selectedElection == null) return;
+        
+        // Show warning about deleting votes
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "<html><b>⚠️ WARNING: This action cannot be undone!</b><br><br>" +
+            "You are about to delete election: <b>" + selectedElection + "</b><br><br>" +
+            "This will remove the election schedule but <b>will NOT delete</b> any votes.<br>" +
+            "Proceed with deletion?</html>",
+            "Confirm Election Deletion",
+            JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            if (ElectionScheduler.deleteElection(selectedElection)) {
+                JOptionPane.showMessageDialog(this, 
+                    "✅ Election '" + selectedElection + "' has been deleted successfully!",
+                    "Deletion Complete", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, 
+                    "❌ Failed to delete election '" + selectedElection + "'",
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void showVoterManagement() {
+        String[] options = {"Add Voter", "View Voter List", "Delete Voter"};
+        String choice = (String) JOptionPane.showInputDialog(this,
+            "Select Action:", "Voter Management",
+            JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+
+        if (choice != null) {
+            switch (choice) {
+                case "Add Voter":
+                    addVoterDialog();
+                    break;
+                case "View Voter List":
+                    viewVoterList();
+                    break;
+                case "Delete Voter":
+                    deleteVoterDialog();
+                    break;
+            }
+        }
+    }
+
+    private void addVoterDialog() {
+        JDialog addDialog = new JDialog(this, "Add New Voter", true);
+        addDialog.setSize(450, 350);
+        addDialog.setLocationRelativeTo(this);
+        addDialog.setLayout(new BorderLayout());
+        
+        JPanel mainPanel = new JPanel(new GridBagLayout());
+        mainPanel.setBackground(Theme.BACKGROUND_WHITE);
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        
+        JLabel title = new JLabel("Add New Voter", SwingConstants.CENTER);
+        title.setFont(Theme.SUBHEADER_FONT);
+        title.setForeground(Theme.PRIMARY_BLUE);
+        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        mainPanel.add(title, gbc);
+        
+        // Voter ID
+        JLabel idLabel = new JLabel("Voter ID:");
+        idLabel.setFont(Theme.BODY_BOLD_FONT);
+        idLabel.setForeground(Theme.TEXT_DARK);
+        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 1;
+        mainPanel.add(idLabel, gbc);
+        
+        JTextField idField = new JTextField(20);
+        idField.setFont(Theme.BODY_FONT);
+        gbc.gridx = 1;
+        mainPanel.add(idField, gbc);
+        
+        // Voter Name
+        JLabel nameLabel = new JLabel("Full Name:");
+        nameLabel.setFont(Theme.BODY_BOLD_FONT);
+        nameLabel.setForeground(Theme.TEXT_DARK);
+        gbc.gridx = 0; gbc.gridy = 2;
+        mainPanel.add(nameLabel, gbc);
+        
+        JTextField nameField = new JTextField(20);
+        nameField.setFont(Theme.BODY_FONT);
+        gbc.gridx = 1;
+        mainPanel.add(nameField, gbc);
+        
+        // Password
+        JLabel passLabel = new JLabel("Password:");
+        passLabel.setFont(Theme.BODY_BOLD_FONT);
+        passLabel.setForeground(Theme.TEXT_DARK);
+        gbc.gridx = 0; gbc.gridy = 3;
+        mainPanel.add(passLabel, gbc);
+        
+        JPasswordField passField = new JPasswordField(20);
+        passField.setFont(Theme.BODY_FONT);
+        gbc.gridx = 1;
+        mainPanel.add(passField, gbc);
+        
+        // Password requirements
+        JLabel reqLabel = new JLabel("<html><small>• At least 6 characters<br>• Include letters and numbers</small></html>");
+        reqLabel.setFont(Theme.SMALL_FONT);
+        reqLabel.setForeground(Theme.TEXT_LIGHT);
+        gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2;
+        mainPanel.add(reqLabel, gbc);
+        
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        buttonPanel.setBackground(Theme.BACKGROUND_WHITE);
+        
+        JButton addButton = createStyledButton("Add Voter", Theme.SUCCESS_GREEN);
+        addButton.addActionListener(e -> {
+            String id = idField.getText().trim();
+            String name = nameField.getText().trim();
+            String password = new String(passField.getPassword()).trim();
+            
+            if (id.isEmpty() || name.isEmpty() || password.isEmpty()) {
+                JOptionPane.showMessageDialog(addDialog, "All fields are required!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            if (ElectionData.voterIdExists(id)) {
+                JOptionPane.showMessageDialog(addDialog, "Voter ID already exists!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            if (password.length() < 6) {
+                JOptionPane.showMessageDialog(addDialog, "Password must be at least 6 characters!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            Voter voter = new Voter(id, name, password);
+            if (ElectionData.registerVoter(voter)) {
+                JOptionPane.showMessageDialog(addDialog, 
+                    "✅ Voter added successfully!\n\n" +
+                    "ID: " + id + "\n" +
+                    "Name: " + name + "\n" +
+                    "Password: " + "•".repeat(password.length()),
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+                addDialog.dispose();
+            } else {
+                JOptionPane.showMessageDialog(addDialog, "Failed to add voter!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        
+        JButton cancelButton = createStyledButton("Cancel", Theme.ERROR_RED);
+        cancelButton.addActionListener(e -> addDialog.dispose());
+        
+        buttonPanel.add(addButton);
+        buttonPanel.add(cancelButton);
+        
+        addDialog.add(mainPanel, BorderLayout.CENTER);
+        addDialog.add(buttonPanel, BorderLayout.SOUTH);
+        addDialog.setVisible(true);
+    }
+
+    private void viewVoterList() {
+        String[] voterStrings = ElectionData.getAllVoters();
+        if (voterStrings.length == 0) {
+            JOptionPane.showMessageDialog(this, "No voters found.");
+            return;
+        }
+
+        StringBuilder list = new StringBuilder();
+        list.append("═══════════════════════════════════════════════════\n");
+        list.append("                     VOTER LIST                     \n");
+        list.append("═══════════════════════════════════════════════════\n\n");
+        
+        int registeredCount = 0;
+        int unregisteredCount = 0;
+        int votedCount = 0;
+        
+        for (String voterStr : voterStrings) {
+            String[] parts = voterStr.split(":");
+            if (parts.length >= 3) {
+                String id = parts[0];
+                String name = parts[1];
+                String password = parts[2];
+                String status = password.isEmpty() ? "Unregistered" : "Registered";
+                
+                if (password.isEmpty()) {
+                    unregisteredCount++;
+                } else {
+                    registeredCount++;
+                }
+                
+                boolean hasVoted = ElectionData.hasVoted(id);
+                if (hasVoted) votedCount++;
+                
+                list.append(String.format("ID: %-20s\n", id));
+                list.append(String.format("Name: %-25s\n", name));
+                list.append(String.format("Status: %-20s\n", status));
+                list.append(String.format("Voted: %-20s\n", hasVoted ? "✅ Yes" : "❌ No"));
+                list.append("───────────────────────────────────────────────\n");
+            }
+        }
+        
+        list.append("\n═══════════════════════════════════════════════════\n");
+        list.append("SUMMARY:\n");
+        list.append("  Total Voters: ").append(voterStrings.length).append("\n");
+        list.append("  Registered: ").append(registeredCount).append("\n");
+        list.append("  Unregistered: ").append(unregisteredCount).append("\n");
+        list.append("  Voted: ").append(votedCount).append("\n");
+        list.append("  Not Voted: ").append(registeredCount - votedCount).append("\n");
+        list.append("═══════════════════════════════════════════════════\n");
+
+        JTextArea textArea = new JTextArea(list.toString());
+        textArea.setEditable(false);
+        textArea.setFont(Theme.MONOSPACE_FONT);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(600, 500));
+        JOptionPane.showMessageDialog(this, scrollPane, "Voter List", 
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void deleteVoterDialog() {
+        String[] voterStrings = ElectionData.getAllVoters();
+        if (voterStrings.length == 0) {
+            JOptionPane.showMessageDialog(this, "No voters found.");
+            return;
+        }
+
+        // Create display options with both ID and Name
+        String[] voterOptions = new String[voterStrings.length];
+        for (int i = 0; i < voterStrings.length; i++) {
+            String[] parts = voterStrings[i].split(":");
+            if (parts.length >= 2) {
+                voterOptions[i] = parts[0] + " - " + parts[1];
+            } else {
+                voterOptions[i] = voterStrings[i];
+            }
+        }
+
+        String selectedVoter = (String) JOptionPane.showInputDialog(this,
+            "Select voter to delete:", "Delete Voter",
+            JOptionPane.QUESTION_MESSAGE, null, voterOptions, voterOptions[0]);
+
+        if (selectedVoter != null) {
+            // Find selected index from the display options to map back to original data
+            int selectedIndex = -1;
+            for (int i = 0; i < voterOptions.length; i++) {
+                if (voterOptions[i].equals(selectedVoter)) { selectedIndex = i; break; }
+            }
+            if (selectedIndex == -1) return;
+
+            String[] parts = voterStrings[selectedIndex].split(":", 3);
+            String voterId = parts.length > 0 ? parts[0] : "";
+
+            // Check if voter has voted
+            boolean hasVoted = ElectionData.hasVoted(voterId);
+            
+            String warning = hasVoted ? 
+                "⚠️ WARNING: This voter has already voted!\nDeleting will also remove their vote.\n\n" : "";
+            
+            int confirm = JOptionPane.showConfirmDialog(this,
+                warning + "Are you sure you want to delete:\n" + selectedVoter + "?\n\n" +
+                "This action cannot be undone.",
+                "Confirm Delete",
+                JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                if (ElectionData.deleteVoter(voterId)) {
+                    JOptionPane.showMessageDialog(this, 
+                        "✅ Voter deleted successfully!\n" + selectedVoter,
+                        "Success", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, 
+                        "❌ Failed to delete voter.\n" + selectedVoter,
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }
+    }
+
+    private void showNomineeManagement() {
+        String[] options = {"Add Nominee", "View Nominee List", "Delete Nominee"};
+        String choice = (String) JOptionPane.showInputDialog(this,
+            "Select Action:", "Nominee Management",
+            JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+
+        if (choice != null) {
+            switch (choice) {
+                case "Add Nominee":
+                    addNomineeDialog();
+                    break;
+                case "View Nominee List":
+                    viewNomineeList();
+                    break;
+                case "Delete Nominee":
+                    deleteNomineeDialog();
+                    break;
+            }
+        }
+    }
+
+    private void addNomineeDialog() {
+        JDialog addDialog = new JDialog(this, "Add New Nominee", true);
+        addDialog.setSize(450, 350);
+        addDialog.setLocationRelativeTo(this);
+        addDialog.setLayout(new BorderLayout());
+        
+        JPanel mainPanel = new JPanel(new GridBagLayout());
+        mainPanel.setBackground(Theme.BACKGROUND_WHITE);
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        
+        JLabel title = new JLabel("Add New Nominee", SwingConstants.CENTER);
+        title.setFont(Theme.SUBHEADER_FONT);
+        title.setForeground(Theme.PRIMARY_BLUE);
+        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        mainPanel.add(title, gbc);
+        
+        // Nominee ID
+        JLabel idLabel = new JLabel("Nominee ID:");
+        idLabel.setFont(Theme.BODY_BOLD_FONT);
+        idLabel.setForeground(Theme.TEXT_DARK);
+        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 1;
+        mainPanel.add(idLabel, gbc);
+        
+        JTextField idField = new JTextField(20);
+        idField.setFont(Theme.BODY_FONT);
+        gbc.gridx = 1;
+        mainPanel.add(idField, gbc);
+        
+        // Nominee Name
+        JLabel nameLabel = new JLabel("Full Name:");
+        nameLabel.setFont(Theme.BODY_BOLD_FONT);
+        nameLabel.setForeground(Theme.TEXT_DARK);
+        gbc.gridx = 0; gbc.gridy = 2;
+        mainPanel.add(nameLabel, gbc);
+        
+        JTextField nameField = new JTextField(20);
+        nameField.setFont(Theme.BODY_FONT);
+        gbc.gridx = 1;
+        mainPanel.add(nameField, gbc);
+
+        // Election Selection
+        JLabel electionLabel = new JLabel("Select Election:");
+        electionLabel.setFont(Theme.BODY_BOLD_FONT);
+        electionLabel.setForeground(Theme.TEXT_DARK);
+        gbc.gridx = 0; gbc.gridy = 3;
+        mainPanel.add(electionLabel, gbc);
+        
+        java.util.List<String> electionList = ElectionScheduler.getAllElections();
+        String[] electionOptions = new String[electionList.size() + 1];
+        electionOptions[0] = "DEFAULT (All Elections)";
+        for (int i = 0; i < electionList.size(); i++) {
+            electionOptions[i + 1] = electionList.get(i);
+        }
+        JComboBox<String> electionCombo = new JComboBox<>(electionOptions);
+        electionCombo.setFont(Theme.BODY_FONT);
+        gbc.gridx = 1;
+        mainPanel.add(electionCombo, gbc);
+        
+        // Political Party
+        JLabel partyLabel = new JLabel("Political Party:");
+        partyLabel.setFont(Theme.BODY_BOLD_FONT);
+        partyLabel.setForeground(Theme.TEXT_DARK);
+        gbc.gridx = 0; gbc.gridy = 4;
+        mainPanel.add(partyLabel, gbc);
+        
+        JTextField partyField = new JTextField(20);
+        partyField.setFont(Theme.BODY_FONT);
+        gbc.gridx = 1;
+        mainPanel.add(partyField, gbc);
+        
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        buttonPanel.setBackground(Theme.BACKGROUND_WHITE);
+        
+        JButton addButton = createStyledButton("Add Nominee", Theme.SUCCESS_GREEN);
+        addButton.addActionListener(e -> {
+            String id = idField.getText().trim();
+            String name = nameField.getText().trim();
+            String party = partyField.getText().trim();
+            String election = (String) electionCombo.getSelectedItem();
+            if (election.startsWith("DEFAULT")) {
+                election = "DEFAULT";
+            }
+
+            if (id.isEmpty() || name.isEmpty() || party.isEmpty()) {
+                JOptionPane.showMessageDialog(addDialog, "All fields are required!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (ElectionData.nomineeIdExistsInElection(id, election)) {
+                JOptionPane.showMessageDialog(addDialog, 
+                    "Nominee ID already exists in election '" + election + "'!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            Nominee nominee = new Nominee(id, name, party, election);
+            if (ElectionData.addNominee(nominee)) {
+                JOptionPane.showMessageDialog(addDialog, 
+                    "✅ Nominee added successfully!\n\n" +
+                    "ID: " + id + "\n" +
+                    "Name: " + name + "\n" +
+                    "Party: " + party + "\n" +
+                    "Election: " + election,
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+                addDialog.dispose();
+            } else {
+                JOptionPane.showMessageDialog(addDialog, "Failed to add nominee!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        
+        JButton cancelButton = createStyledButton("Cancel", Theme.ERROR_RED);
+        cancelButton.addActionListener(e -> addDialog.dispose());
+        
+        buttonPanel.add(addButton);
+        buttonPanel.add(cancelButton);
+        
+        addDialog.add(mainPanel, BorderLayout.CENTER);
+        addDialog.add(buttonPanel, BorderLayout.SOUTH);
+        addDialog.setVisible(true);
+    }
+
+    private void viewNomineeList() {
+        String[] nominees = ElectionData.getAllNominees();
+        if (nominees.length == 0) {
+            JOptionPane.showMessageDialog(this, "No nominees found.");
+            return;
+        }
+
+        // Get vote counts
+        Map<String, Integer> voteCounts = getVoteCounts();
+        
+        StringBuilder list = new StringBuilder();
+        list.append("═══════════════════════════════════════════════════\n");
+        list.append("                   NOMINEE LIST                    \n");
+        list.append("═══════════════════════════════════════════════════\n\n");
+        
+        for (String nominee : nominees) {
+            String[] parts = nominee.split(":");
+            if (parts.length >= 3) {
+                String nomineeId = parts[0];
+                int votes = voteCounts.getOrDefault(nomineeId, 0);
+                String election = parts.length >= 4 ? parts[3] : "DEFAULT";
+                
+                list.append(String.format("ID: %-20s\n", parts[0]));
+                list.append(String.format("Name: %-25s\n", parts[1]));
+                list.append(String.format("Party: %-25s\n", parts[2]));
+                list.append(String.format("Election: %-25s\n", election));
+                list.append(String.format("Votes: %-25s\n", votes + " votes"));
+                list.append("───────────────────────────────────────────────\n");
+            }
+        }
+        
+        list.append("\n═══════════════════════════════════════════════════\n");
+        list.append("Total Nominees: ").append(nominees.length).append("\n");
+        list.append("═══════════════════════════════════════════════════\n");
+
+        JTextArea textArea = new JTextArea(list.toString());
+        textArea.setEditable(false);
+        textArea.setFont(Theme.MONOSPACE_FONT);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(500, 400));
+        JOptionPane.showMessageDialog(this, scrollPane, "Nominee List", 
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void deleteNomineeDialog() {
+        String[] nominees = ElectionData.getAllNominees();
+        if (nominees.length == 0) {
+            JOptionPane.showMessageDialog(this, "No nominees found.");
+            return;
+        }
+
+        String[] nomineeOptions = new String[nominees.length];
+        for (int i = 0; i < nominees.length; i++) {
+            String[] parts = nominees[i].split(":");
+            if (parts.length >= 2) {
+                nomineeOptions[i] = parts[1] + " (" + parts[0] + ") - " + parts[2];
+            }
+        }
+
+        String selectedNominee = (String) JOptionPane.showInputDialog(this,
+            "Select nominee to delete:", "Delete Nominee",
+            JOptionPane.QUESTION_MESSAGE, null, nomineeOptions, nomineeOptions[0]);
+
+        if (selectedNominee != null) {
+            // Map selected display back to original nominee entry to avoid fragile parsing
+            int selectedIndex = -1;
+            for (int i = 0; i < nomineeOptions.length; i++) {
+                if (nomineeOptions[i].equals(selectedNominee)) { selectedIndex = i; break; }
+            }
+            if (selectedIndex == -1) return;
+
+            String[] parts = nominees[selectedIndex].split(":", 3);
+            String nomineeId = parts.length > 0 ? parts[0] : "";
+
+            // Check if nominee has received votes
+            Map<String, Integer> voteCounts = getVoteCounts();
+            int votesReceived = voteCounts.getOrDefault(nomineeId, 0);
+            
+            String warning = votesReceived > 0 ? 
+                "⚠️ WARNING: This nominee has received " + votesReceived + " votes!\n" +
+                "Deleting will remove them from the ballot.\n\n" : "";
+            
+            int confirm = JOptionPane.showConfirmDialog(this,
+                warning + "Delete nominee: " + selectedNominee + "?", 
+                "Confirm Delete",
+                JOptionPane.YES_NO_OPTION, votesReceived > 0 ? JOptionPane.WARNING_MESSAGE : JOptionPane.QUESTION_MESSAGE);
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                if (ElectionData.deleteNominee(nomineeId)) {
+                    JOptionPane.showMessageDialog(this, 
+                        "✅ Nominee deleted successfully!\n" + selectedNominee,
+                        "Success", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, 
+                        "❌ Failed to delete nominee.\n" + selectedNominee,
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }
+    }
+
+    // Methods for vote counting and monitoring
+    private void showLiveResults() {
+        Map<String, Integer> voteCounts = getVoteCounts();
+        int totalVotes = getTotalVotesCast();
+        int totalVoters = getTotalRegisteredVoters();
+        boolean electionActive = ElectionScheduler.isElectionActive();
+        
+        StringBuilder results = new StringBuilder();
+        results.append("📊 LIVE ELECTION RESULTS\n");
+        results.append("═══════════════════════════════════════════════════\n\n");
+        
+        results.append("Election Status: ").append(electionActive ? "✅ ACTIVE" : "❌ INACTIVE").append("\n");
+        results.append("Total Registered Voters: ").append(totalVoters).append("\n");
+        results.append("Total Votes Cast: ").append(totalVotes).append(" / ").append(totalVoters)
+               .append(" (").append((totalVoters > 0 ? (totalVotes * 100 / totalVoters) : 0)).append("% turnout)\n\n");
+        
+        if (voteCounts.isEmpty()) {
+            results.append("No votes cast yet.\n");
+        } else {
+            results.append("📈 VOTE DISTRIBUTION:\n");
+            
+            // Sort by votes (highest first)
+            voteCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .forEachOrdered(entry -> {
+                    String nomineeId = entry.getKey();
+                    int votes = entry.getValue();
+                    
+                    // Find nominee details
+                    String nomineeName = "Unknown";
+                    String partyName = "Unknown";
+                    String[] nominees = ElectionData.getAllNominees();
+                    for (String nominee : nominees) {
+                        String[] parts = nominee.split(":");
+                        if (parts.length >= 3 && parts[0].equals(nomineeId)) {
+                            nomineeName = parts[1];
+                            partyName = parts[2];
+                            break;
+                        }
+                    }
+                    
+                    int percentage = totalVotes > 0 ? (votes * 100 / totalVotes) : 0;
+                    int barLength = (percentage * 30) / 100; // Scale bar to 30 chars max
+                    
+                    results.append(String.format("• %-25s (%s)\n", nomineeName, partyName));
+                    results.append(String.format("  Votes: %-4d %3d%% ", votes, percentage));
+                    results.append("[");
+                    for (int i = 0; i < 30; i++) {
+                        results.append(i < barLength ? "█" : "░");
+                    }
+                    results.append("]\n\n");
+                });
+        }
+        
+        results.append("═══════════════════════════════════════════════════\n");
+        results.append("Last updated: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())).append("\n");
+        results.append("═══════════════════════════════════════════════════\n");
+        
+        JTextArea textArea = new JTextArea(results.toString());
+        textArea.setEditable(false);
+        textArea.setFont(Theme.MONOSPACE_FONT);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(600, 500));
+        
+        JOptionPane.showMessageDialog(this, scrollPane, "Live Election Results", 
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void showVoterStatus() {
+        String[] allVoters = ElectionData.getAllVoters();
+        String[] votedVoters = getVotersWhoVoted();
+        
+        StringBuilder status = new StringBuilder();
+        status.append("👥 VOTER PARTICIPATION STATUS\n");
+        status.append("═══════════════════════════════════════════════════\n\n");
+        
+        status.append("Election Status: ").append(ElectionScheduler.isVotingAllowed() ? "✅ Active" : "❌ Inactive").append("\n");
+        status.append("Total Registered Voters: ").append(allVoters.length).append("\n");
+        status.append("Voters Who Have Voted: ").append(votedVoters.length).append("\n");
+        status.append("Voters Yet to Vote: ").append(allVoters.length - votedVoters.length).append("\n");
+        status.append("Turnout Rate: ").append(allVoters.length > 0 ? 
+            (votedVoters.length * 100 / allVoters.length) : 0).append("%\n\n");
+        
+        // Show voting progress bar
+        int progressWidth = 40;
+        int votedBars = allVoters.length > 0 ? (votedVoters.length * progressWidth / allVoters.length) : 0;
+        status.append("Progress: [");
+        for (int i = 0; i < progressWidth; i++) {
+            status.append(i < votedBars ? "█" : "░");
+        }
+        status.append("] ").append(votedVoters.length).append("/").append(allVoters.length).append("\n\n");
+        
+        status.append("✅ VOTED (").append(votedVoters.length).append(" voters):\n");
+        for (String voterId : votedVoters) {
+            for (String voterInfo : allVoters) {
+                String[] parts = voterInfo.split(":");
+                if (parts.length >= 2 && parts[0].equals(voterId)) {
+                    status.append("• ").append(parts[1]).append(" (ID: ").append(voterId).append(")\n");
+                    break;
+                }
+            }
+        }
+        
+        status.append("\n❌ NOT VOTED YET (").append(allVoters.length - votedVoters.length).append(" voters):\n");
+        for (String voterInfo : allVoters) {
+            String[] parts = voterInfo.split(":");
+            if (parts.length >= 2) {
+                String voterId = parts[0];
+                boolean hasVoted = false;
+                for (String voted : votedVoters) {
+                    if (voted.equals(voterId)) {
+                        hasVoted = true;
+                        break;
+                    }
+                }
+                if (!hasVoted) {
+                    status.append("• ").append(parts[1]).append(" (ID: ").append(voterId).append(")\n");
+                }
+            }
+        }
+        
+        status.append("\n═══════════════════════════════════════════════════\n");
+        status.append("Generated: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())).append("\n");
+        status.append("═══════════════════════════════════════════════════\n");
+        
+        JTextArea textArea = new JTextArea(status.toString());
+        textArea.setEditable(false);
+        textArea.setFont(Theme.MONOSPACE_FONT);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(500, 500));
+        
+        JOptionPane.showMessageDialog(this, scrollPane, "Voter Participation Status", 
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void publishFinalResults() {
+        // First check if election is active
+        if (ElectionScheduler.isElectionActive()) {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                "⚠️ Election is still active!\n" +
+                "Are you sure you want to publish results while voting is ongoing?",
+                "Election Still Active",
+                JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+        
+        String[] options = {"View Results in Dashboard", "Export to Text File", "Both", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(this,
+            "How would you like to view/publish the election results?",
+            "Publish Election Results",
+            JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+            null, options, options[0]);
+        
+        switch (choice) {
+            case 0: // View Results in Dashboard
+                setVisible(false);
+                new ElectionResults(this).setVisible(true);
+                break;
+                
+            case 1: // Export to Text File
+                exportResultsToFile();
+                break;
+                
+            case 2: // Both
+                setVisible(false);
+                new ElectionResults(this).setVisible(true);
+                exportResultsToFile();
+                break;
+                
+            case 3: // Cancel
+                // Do nothing
+                break;
+        }
+    }
+
+    // Helper method for file export
+    private void exportResultsToFile() {
+        try (java.io.PrintWriter writer = new java.io.PrintWriter("election_results_" + System.currentTimeMillis() + ".txt")) {
+            Map<String, Integer> voteCounts = getVoteCounts();
+            int totalVotes = getTotalVotesCast();
+            int totalVoters = getTotalRegisteredVoters();
+            
+            writer.println("═══════════════════════════════════════════════════");
+            writer.println("           OFFICIAL ELECTION RESULTS               ");
+            writer.println("═══════════════════════════════════════════════════");
+            writer.println("Generated: " + new Date());
+            writer.println("Generated by: " + AdminData.getAdminNameById(adminId) + " (" + adminId + ")");
+            writer.println("Election Status: " + (ElectionScheduler.isElectionActive() ? "ACTIVE" : "COMPLETED"));
+            writer.println("Total Registered Voters: " + totalVoters);
+            writer.println("Total Votes Cast: " + totalVotes);
+            writer.println("Voter Turnout: " + (totalVoters > 0 ? (totalVotes * 100 / totalVoters) : 0) + "%");
+            writer.println("═══════════════════════════════════════════════════\n");
+            
+            if (voteCounts.isEmpty()) {
+                writer.println("No votes have been cast in this election.");
+            } else {
+                writer.println("DETAILED RESULTS:");
+                writer.println(String.format("%-5s %-25s %-20s %-8s %-10s %-10s", 
+                    "Rank", "Candidate", "Party", "Votes", "Percentage", "Status"));
+                writer.println("─────────────────────────────────────────────────────────────────────────────────────────");
+                
+                // Find winner(s)
+                int maxVotes = 0;
+                for (int votes : voteCounts.values()) {
+                    if (votes > maxVotes) maxVotes = votes;
+                }
+                
+                int rank = 1;
+                java.util.List<Map.Entry<String, Integer>> sortedEntries = voteCounts.entrySet().stream()
+                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                    .collect(java.util.stream.Collectors.toList());
+                for (Map.Entry<String, Integer> entry : sortedEntries) {
+                    String nomineeId = entry.getKey();
+                    int votes = entry.getValue();
+                    int percentage = totalVotes > 0 ? (votes * 100 / totalVotes) : 0;
+                    
+                    // Find nominee details
+                    String nomineeName = "Unknown";
+                    String partyName = "Unknown";
+                    String[] nominees = ElectionData.getAllNominees();
+                    for (String nominee : nominees) {
+                        String[] parts = nominee.split(":");
+                        if (parts.length >= 3 && parts[0].equals(nomineeId)) {
+                            nomineeName = parts[1];
+                            partyName = parts[2];
+                            break;
+                        }
+                    }
+                    
+                    String status = (votes == maxVotes) ? "WINNER" : "RUNNER UP";
+                    writer.println(String.format("%-5d %-25s %-20s %-8d %-10s %-10s", 
+                        rank++, nomineeName, partyName, votes, percentage + "%", status));
+                }
+            }
+            
+            writer.println("\n═══════════════════════════════════════════════════");
+            writer.println("This is an official election results certificate.");
+            writer.println("Generated by the Election Management System.");
+            writer.println("═══════════════════════════════════════════════════");
+            
+            JOptionPane.showMessageDialog(this,
+                "✅ Results exported successfully!\n" +
+                "File saved in current directory.",
+                "Export Complete",
+                JOptionPane.INFORMATION_MESSAGE);
+                
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this,
+                "❌ Error exporting results: " + e.getMessage(),
+                "Export Error",
+                JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // Helper methods for vote counting
+    private Map<String, Integer> getVoteCounts() {
+        Map<String, Integer> voteCounts = new HashMap<>();
+        String[] votes = ElectionData.getAllVotes();
+        
+        for (String vote : votes) {
+            String[] parts = vote.split(":");
+            if (parts.length >= 2) {
+                String nomineeId = parts[1];
+                voteCounts.put(nomineeId, voteCounts.getOrDefault(nomineeId, 0) + 1);
+            }
+        }
+        return voteCounts;
+    }
+
+    private String[] getVotersWhoVoted() {
+        ArrayList<String> votedVoters = new ArrayList<>();
+        String[] votes = ElectionData.getAllVotes();
+        
+        for (String vote : votes) {
+            String[] parts = vote.split(":");
+            if (parts.length >= 1) {
+                votedVoters.add(parts[0]);
+            }
+        }
+        return votedVoters.toArray(new String[0]);
+    }
+
+    private int getTotalVotesCast() {
+        String[] votes = ElectionData.getAllVotes();
+        return votes.length;
+    }
+
+    private int getTotalRegisteredVoters() {
+        String[] voters = ElectionData.getAllVoters();
+        return voters.length;
+    }
+
+    // Helper method to create styled buttons
+    private JButton createStyledButton(String text, Color bgColor) {
+        JButton button = new JButton(text);
+        button.setBackground(bgColor);
+        button.setForeground(Color.WHITE);
+        button.setFont(Theme.BODY_BOLD_FONT);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(bgColor.darker(), 1),
+            BorderFactory.createEmptyBorder(8, 20, 8, 20)
+        ));
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        
+        // Hover effect
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                button.setBackground(bgColor.brighter());
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(bgColor);
+            }
+        });
+        
+        return button;
+    }
+
+    /**
+     * Reset the main panel to show the default dashboard cards.
+     */
+    public void resetMainPanel() {
+        if (mainPanel != null) {
+            remove(mainPanel);
+        }
+        initMainPanel();
+        revalidate();
+        repaint();
+    }
+    
+    /**
+     * Validate date/time format and provide helpful error messages.
+     */
+    private String validateDateFormat(String dateStr, String fieldName) {
+        if (dateStr == null || dateStr.isEmpty()) {
+            return fieldName + " is empty";
+        }
+        
+        // Check if it matches the pattern
+        if (!dateStr.matches("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}")) {
+            return fieldName + " format incorrect.\n" +
+                "Expected: yyyy-MM-dd HH:mm:ss\n" +
+                "Got: " + dateStr;
+        }
+        
+        // Check if date is logically valid
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            sdf.setLenient(false);
+            sdf.parse(dateStr);
+        } catch (java.text.ParseException ex) {
+            int errorOffset = ex.getErrorOffset();
+            String hint = "Unknown error";
+            
+            if (errorOffset >= 0 && errorOffset < dateStr.length()) {
+                if (errorOffset < 4) hint = "Invalid year (must be 4 digits like 2026)";
+                else if (errorOffset < 7) hint = "Invalid month (must be 01-12)";
+                else if (errorOffset < 10) hint = "Invalid day (must be 01-31 depending on month)";
+                else if (errorOffset < 13) hint = "Invalid hour (must be 00-23)";
+                else if (errorOffset < 16) hint = "Invalid minute (must be 00-59)";
+                else if (errorOffset < 19) hint = "Invalid second (must be 00-59)";
+            }
+            
+            return fieldName + " has invalid value:\n" + hint;
+        }
+        
+        return null; // No error
+    }
+}

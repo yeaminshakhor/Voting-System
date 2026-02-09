@@ -16,13 +16,11 @@ public class NomineePanel extends JPanel {
     private final Color BACKGROUND_COLOR = Color.decode("#F8F9FA");
     private final Color PRIMARY_BLUE = Color.decode("#2563EB");
     private final Color TEXT_DARK = Color.decode("#1F2937");
-    private final AdminDashboard dashboard;
 
     /**
      * Initializes the NomineePanel with an array of nominees and a reference to the dashboard.
      */
     public NomineePanel(Nominee[] nominees, AdminDashboard dashboard) {
-        this.dashboard = dashboard;
         setLayout(new BorderLayout());
         setBackground(BACKGROUND_COLOR);
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));

@@ -1,0 +1,82 @@
+# Portal Integration Configuration
+# 
+# This file configures connections to external institute portals for voter data import.
+# Uncomment and fill in the sections for your institute's systems.
+
+# ============================================================================
+# MOODLE LMS CONFIGURATION
+# ============================================================================
+# Moodle is a popular learning management system used by many institutions
+#
+# moodle_url=https://moodle.yourinstitude.edu/webservice/rest/server.php
+# moodle_token=your_moodle_web_service_token
+#
+# To get a token:
+# 1. Go to Moodle Administration Panel
+# 2. Navigate to: Site administration > Plugins > Web services > Manage tokens
+# 3. Create a new token for your web service user
+# 4. Copy the token and paste it here
+
+# ============================================================================
+# LDAP DIRECTORY CONFIGURATION
+# ============================================================================
+# LDAP is commonly used for directory services in enterprises and universities
+#
+# ldap_url=ldap://ldap.yourinstitute.edu:389
+# ldap_base_dn=dc=institute,dc=edu
+# ldap_bind_dn=cn=admin,dc=institute,dc=edu
+# ldap_password=your_ldap_password
+# ldap_search_filter=(uid={username})
+
+# ============================================================================
+# GENERIC REST API CONFIGURATION
+# ============================================================================
+# If your institute uses a custom web service
+#
+# rest_url=https://api.yourinstitute.edu/students
+# rest_auth_type=bearer
+# rest_token=your_api_token
+
+# ============================================================================
+# EXAMPLE CONFIGURATIONS (Uncomment and modify for your institute)
+# ============================================================================
+
+# Example for Moodle:
+# moodle_url=https://learn.example.edu/webservice/rest/server.php?wsfunction=core_user_get_users&moodlewsrestformat=json
+# moodle_token=abc123def456ghi789jkl0
+
+# Example for LDAP:
+# ldap_url=ldap://directory.example.edu:389
+
+# ============================================================================
+# NOTES FOR ADMINISTRATORS
+# ============================================================================
+#
+# 1. SECURITY: Keep this file secure. It may contain sensitive API tokens.
+#    - Set appropriate file permissions (chmod 600 on Linux/Mac)
+#    - Don't commit to version control
+#    - Use dedicated service accounts when possible
+#
+# 2. TESTING: Test your configuration with the admin interface
+#    - Go to Admin Dashboard > Manage Voters > Import Portal
+#    - Use "Direct Portal Fetch" tab to test individual records
+#
+# 3. BULK IMPORT: Use CSV files for bulk imports
+#    - Prepare CSV: student_id,full_name,email
+#    - Upload via "CSV File Import" tab
+#
+# 4. AFTER IMPORT:
+#    - Voters can immediately register with passwords
+#    - They won't be able to vote until registered
+#    - Voting opens based on election schedule
+#
+# 5. TROUBLESHOOTING:
+#    - Check that portal URLs are accessible
+#    - Verify API tokens/credentials are current
+#    - Ensure firewall allows outbound connections
+#    - Check institute's portal API documentation for rate limits
+
+# ============================================================================
+# NO CONFIGURATION NEEDED FOR CSV IMPORT
+# CSV files can be uploaded directly without any portal configuration
+# ============================================================================

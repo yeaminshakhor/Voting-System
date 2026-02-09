@@ -131,7 +131,7 @@ public class LoginFrame extends JFrame {
         adminBtn.setPreferredSize(new Dimension(200, 50));
         adminBtn.addActionListener(e -> {
             setVisible(false);
-            new AdminDashboard().setVisible(true);
+            new AdminDashboard("admin", LoginFrame.this).setVisible(true);
             dispose();
         });
         rightPanel.add(adminBtn, gbc);

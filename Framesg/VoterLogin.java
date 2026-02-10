@@ -6,6 +6,7 @@ import java.awt.event.*;
 import Data.ElectionData;
 
 public class VoterLogin extends JFrame implements ActionListener {
+    private static final long serialVersionUID = 1L;
     private static final Color NAVY_BLUE = new Color(25, 25, 112);
     private static final Color LIGHT_BLUE = new Color(173, 216, 230);
     private static final Color DODGER_BLUE = new Color(30, 144, 255);
@@ -22,7 +23,16 @@ public class VoterLogin extends JFrame implements ActionListener {
         this.parentFrame = parentFrame;
         setSize(400, 350);
         setLocationRelativeTo(null);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                setVisible(false);
+                if (parentFrame != null) {
+                    parentFrame.setVisible(true);
+                }
+            }
+        });
 
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(NAVY_BLUE);

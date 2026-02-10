@@ -12,6 +12,7 @@ import java.util.Date;
  * Enhanced Voter Voting Interface with Election Schedule Validation
  */
 public class VoterVoting extends JFrame implements ActionListener {
+    private static final long serialVersionUID = 1L;
     private String voterId;
     private JFrame parentFrame;
     private JComboBox<String> nomineeComboBox;
@@ -34,7 +35,17 @@ public class VoterVoting extends JFrame implements ActionListener {
         setTitle("Cast Your Vote - Voter: " + voterId);
         setSize(600, 450);
         setLocationRelativeTo(null);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        this.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                setVisible(false);
+                dispose();
+                if (parentFrame != null) {
+                    parentFrame.setVisible(true);
+                }
+            }
+        });
         getContentPane().setBackground(Theme.BACKGROUND_WHITE);
     }
 
@@ -266,7 +277,10 @@ public class VoterVoting extends JFrame implements ActionListener {
             
             if (confirm == JOptionPane.YES_OPTION) {
                 setVisible(false);
-                parentFrame.setVisible(true);
+                dispose();  // Properly dispose of the window
+                if (parentFrame != null) {
+                    parentFrame.setVisible(true);
+                }
             }
         });
         
@@ -424,9 +438,12 @@ public class VoterVoting extends JFrame implements ActionListener {
                     // Log the vote
                     System.out.println("Vote recorded - Voter: " + voterId + ", Nominee: " + nomineeId);
                     
-                    // Close voting window
+                    // Close voting window and return to parent
                     setVisible(false);
-                    parentFrame.setVisible(true);
+                    dispose();  // Properly dispose of the window
+                    if (parentFrame != null) {
+                        parentFrame.setVisible(true);
+                    }
                     
                 } else {
                     JOptionPane.showMessageDialog(this,

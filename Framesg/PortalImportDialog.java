@@ -4,7 +4,6 @@ import Data.ElectionData;
 import Data.PortalIntegration;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
 import java.io.*;
 
 /**
@@ -12,6 +11,7 @@ import java.io.*;
  * Supports multiple portal types and CSV file imports.
  */
 public class PortalImportDialog extends JDialog {
+    private static final long serialVersionUID = 1L;
     
     public PortalImportDialog(JFrame parent) {
         super(parent, "Import Voters from Portal", true);

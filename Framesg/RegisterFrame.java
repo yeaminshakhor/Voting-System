@@ -1,11 +1,8 @@
 package Framesg;
 
 import Data.ElectionData;
-import Utils.SecurityUtils;
 import java.awt.*;
-import java.awt.event.*;
 import javax.swing.*;
-import java.io.*;
 
 /**
  * RegisterFrame for voter registration in the Online Voting System.
@@ -19,6 +16,7 @@ import java.io.*;
  * - Input validation and sanitization
  */
 public class RegisterFrame extends JFrame {
+    private static final long serialVersionUID = 1L;
 
     public RegisterFrame() {
         setTitle("Register as Voter");

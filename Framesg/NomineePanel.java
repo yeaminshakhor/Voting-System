@@ -10,6 +10,7 @@ import Entities.Nominee;
  * Panel for managing nominees, allowing addition and deletion of nominees.
  */
 public class NomineePanel extends JPanel {
+    private static final long serialVersionUID = 1L;
     private final DefaultListModel<Nominee> nomineeListModel;
     private final JList<Nominee> nomineeJList;
     private final JTextField idField, nameField, partyField;

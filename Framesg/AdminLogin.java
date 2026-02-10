@@ -19,16 +19,16 @@ import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 
 public class AdminLogin extends JFrame implements ActionListener {
+   private static final long serialVersionUID = 1L;
    private static final Color NAVY_BLUE = new Color(25, 25, 112);
    private static final Color LIGHT_BLUE = new Color(173, 216, 230);
    private static final Color DODGER_BLUE = new Color(30, 144, 255);
-   private static final int WINDOW_WIDTH = 450;
-   private static final int WINDOW_HEIGHT = 300;
    private final JTextField adminIdField;
    private final JPasswordField passwordField;
    private final JButton loginButton;
    private final JButton backButton;
-   private final JButton emergencyButton; // Added emergency button
+   private final JButton emergencyButton;
+   private final JButton forgotPasswordButton;
    private final JFrame parentFrame;
 
    public AdminLogin(JFrame var1) {
@@ -36,82 +36,100 @@ public class AdminLogin extends JFrame implements ActionListener {
       this.parentFrame = var1;
       this.setSize(450, 300);
       this.setLocationRelativeTo((Component)null);
-      this.setDefaultCloseOperation(3);
-      JPanel var2 = new JPanel(new GridBagLayout());
-      var2.setBackground(NAVY_BLUE);
-      GridBagConstraints var3 = new GridBagConstraints();
-      var3.insets = new Insets(10, 10, 10, 10);
-      var3.anchor = 10;
+      this.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+      this.addWindowListener(new java.awt.event.WindowAdapter() {
+         @Override
+         public void windowClosing(java.awt.event.WindowEvent e) {
+            setVisible(false);
+            if (parentFrame != null) {
+               parentFrame.setVisible(true);
+            }
+         }
+      });
+      
+      JPanel mainPanel = new JPanel(new GridBagLayout());
+      mainPanel.setBackground(NAVY_BLUE);
+      GridBagConstraints gbc = new GridBagConstraints();
+      gbc.insets = new Insets(10, 10, 10, 10);
+      gbc.anchor = 10;
       
       // Title Label
-      JLabel var4 = new JLabel("Admin Login", 0);
-      var4.setFont(new Font("Arial", 1, 20));
-      var4.setForeground(LIGHT_BLUE);
-      var3.gridx = 0;
-      var3.gridy = 0;
-      var3.gridwidth = 2;
-      var2.add(var4, var3);
+      JLabel titleLabel = new JLabel("Admin Login", 0);
+      titleLabel.setFont(new Font("Arial", Font.BOLD, 20));
+      titleLabel.setForeground(LIGHT_BLUE);
+      gbc.gridx = 0;
+      gbc.gridy = 0;
+      gbc.gridwidth = 2;
+      mainPanel.add(titleLabel, gbc);
       
       // Admin ID Label and Field
-      var3.gridwidth = 1;
-      var3.gridy = 1;
-      JLabel var5 = new JLabel("Admin ID:");
-      var5.setForeground(LIGHT_BLUE);
-      var2.add(var5, var3);
+      gbc.gridwidth = 1;
+      gbc.gridy = 1;
+      JLabel adminIdLabel = new JLabel("Admin ID:");
+      adminIdLabel.setForeground(LIGHT_BLUE);
+      mainPanel.add(adminIdLabel, gbc);
       
-      var3.gridx = 1;
+      gbc.gridx = 1;
       this.adminIdField = new JTextField(20);
       this.adminIdField.setEditable(true);
       this.adminIdField.setFocusable(true);
-      this.adminIdField.setPreferredSize(new java.awt.Dimension(200, 25)); // Fixed size
-      var2.add(this.adminIdField, var3);
+      this.adminIdField.setPreferredSize(new java.awt.Dimension(200, 25));
+      mainPanel.add(this.adminIdField, gbc);
       
       // Password Label and Field
-      var3.gridx = 0;
-      var3.gridy = 2;
-      JLabel var6 = new JLabel("Password:");
-      var6.setForeground(LIGHT_BLUE);
-      var2.add(var6, var3);
+      gbc.gridx = 0;
+      gbc.gridy = 2;
+      JLabel passwordLabel = new JLabel("Password:");
+      passwordLabel.setForeground(LIGHT_BLUE);
+      mainPanel.add(passwordLabel, gbc);
       
-      var3.gridx = 1;
+      gbc.gridx = 1;
       this.passwordField = new JPasswordField(20);
       this.passwordField.setEditable(true);
       this.passwordField.setFocusable(true);
-      this.passwordField.setPreferredSize(new java.awt.Dimension(200, 25)); // Fixed size
-      var2.add(this.passwordField, var3);
+      this.passwordField.setPreferredSize(new java.awt.Dimension(200, 25));
+      mainPanel.add(this.passwordField, gbc);
       
       // Login Button
-      var3.gridx = 0;
-      var3.gridy = 3;
-      var3.gridwidth = 2;
+      gbc.gridx = 0;
+      gbc.gridy = 3;
+      gbc.gridwidth = 2;
       this.loginButton = new JButton("Login");
       this.loginButton.setBackground(DODGER_BLUE);
       this.loginButton.setForeground(Color.WHITE);
-      this.loginButton.setPreferredSize(new java.awt.Dimension(150, 30)); // Fixed size
+      this.loginButton.setPreferredSize(new java.awt.Dimension(150, 30));
       this.loginButton.addActionListener(this);
-      var2.add(this.loginButton, var3);
+      mainPanel.add(this.loginButton, gbc);
       
-      // Emergency Reset Button (Hidden by default, shown if needed)
-      var3.gridy = 4;
-      this.emergencyButton = new JButton("Forgot Password?");
-      this.emergencyButton.setBackground(Color.ORANGE);
-      this.emergencyButton.setForeground(Color.BLACK);
+      // Forgot Password Button
+      gbc.gridy = 4;
+      this.forgotPasswordButton = new JButton("Forgot Password?");
+      this.forgotPasswordButton.setBackground(Color.ORANGE);
+      this.forgotPasswordButton.setForeground(Color.BLACK);
+      this.forgotPasswordButton.setPreferredSize(new java.awt.Dimension(150, 25));
+      this.forgotPasswordButton.addActionListener(this);
+      mainPanel.add(this.forgotPasswordButton, gbc);
+      
+      // Emergency Button (Hidden by default)
+      gbc.gridy = 5;
+      this.emergencyButton = new JButton("Emergency Setup");
+      this.emergencyButton.setBackground(Color.RED);
+      this.emergencyButton.setForeground(Color.WHITE);
       this.emergencyButton.setPreferredSize(new java.awt.Dimension(150, 25));
       this.emergencyButton.addActionListener(this);
-      // Hide by default, show only if no admins exist
-      this.emergencyButton.setVisible(false);
-      var2.add(this.emergencyButton, var3);
+      this.emergencyButton.setVisible(false); // Hidden initially
+      mainPanel.add(this.emergencyButton, gbc);
       
       // Back Button
-      var3.gridy = 5;
+      gbc.gridy = 6;
       this.backButton = new JButton("Back to Main");
       this.backButton.setBackground(DODGER_BLUE);
       this.backButton.setForeground(Color.WHITE);
-      this.backButton.setPreferredSize(new java.awt.Dimension(150, 30)); // Fixed size
+      this.backButton.setPreferredSize(new java.awt.Dimension(150, 30));
       this.backButton.addActionListener(this);
-      var2.add(this.backButton, var3);
+      mainPanel.add(this.backButton, gbc);
       
-      this.add(var2);
+      this.add(mainPanel);
       
       // Check if we need to show emergency button
       checkAdminSystemStatus();
@@ -123,106 +141,388 @@ public class AdminLogin extends JFrame implements ActionListener {
          boolean hasAdmins = !SqlAdminManager.getAllAdmins().isEmpty();
          if (!hasAdmins) {
             emergencyButton.setVisible(true);
-            emergencyButton.setText("No Admins - Click to Setup");
+            emergencyButton.setText("⚠️ No Admins - Emergency Setup");
+            
+            // Show warning to user
+            JOptionPane.showMessageDialog(this,
+                "<html><b>⚠️ No Admin Accounts Found</b><br><br>" +
+                "System has no admin accounts in the database.<br>" +
+                "Click 'Emergency Setup' to create a default admin.</html>",
+                "Setup Required",
+                JOptionPane.WARNING_MESSAGE);
          }
       } catch (Exception e) {
          emergencyButton.setVisible(true);
-         emergencyButton.setText("System Error - Setup Required");
+         emergencyButton.setText("⚠️ System Error - Setup");
       }
    }
 
-   public void actionPerformed(ActionEvent var1) {
-      if (var1.getSource() == this.loginButton) {
-         String var2 = this.adminIdField.getText().trim();
-         String var3 = (new String(this.passwordField.getPassword())).trim();
-         
-         if (var2.isEmpty() || var3.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Admin ID and Password are required", 
-                                         "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-         }
-
-         // Use SqlAdminManager instead of AdminData
-         if (SqlAdminManager.validateAdminCredentials(var2, var3)) {
-            // Get admin details
-            String adminName = SqlAdminManager.getAdminNameById(var2);
-            String role = SqlAdminManager.getRoleById(var2);
-            
-            JOptionPane.showMessageDialog(this, 
-                "Welcome, " + adminName + "!\nRole: " + role,
-                "Login Successful", JOptionPane.INFORMATION_MESSAGE);
-                
-            this.setVisible(false);
-            
-            // Open AdminDashboard - adjust this based on your AdminDashboard constructor
-            (new AdminDashboard(var2, this)).setVisible(true);
-         } else {
-            JOptionPane.showMessageDialog(this, 
-                "Invalid Admin ID or Password!\n\nTry:\n- ID: superadmin\n- Password: super123\n\nOr click 'Forgot Password?' to reset.",
-                "Login Failed", JOptionPane.ERROR_MESSAGE);
-         }
+   public void actionPerformed(ActionEvent evt) {
+      if (evt.getSource() == this.loginButton) {
+         handleLogin();
       } 
-      else if (var1.getSource() == this.emergencyButton) {
+      else if (evt.getSource() == this.forgotPasswordButton) {
+         handleForgotPassword();
+      }
+      else if (evt.getSource() == this.emergencyButton) {
          handleEmergencyButton();
       }
-      else if (var1.getSource() == this.backButton) {
+      else if (evt.getSource() == this.backButton) {
          this.setVisible(false);
          this.parentFrame.setVisible(true);
       }
    }
    
-   private void handleEmergencyButton() {
-      int option = JOptionPane.showConfirmDialog(this,
-          "Emergency Admin Setup\n\n" +
-          "No admin accounts found or system error.\n" +
-          "Do you want to:\n" +
-          "1. Create default admin (admin/admin123)\n" +
-          "2. Reset all passwords to 'Reset123!'\n" +
-          "3. Migrate from text file",
-          "Emergency Setup", JOptionPane.YES_NO_CANCEL_OPTION);
+   private void handleLogin() {
+      String adminId = this.adminIdField.getText().trim();
+      String password = new String(this.passwordField.getPassword());
       
-      if (option == JOptionPane.YES_OPTION) {
-         // Create default admin
-         boolean success = SqlAdminManager.addAdmin("admin", "System Administrator", "admin123", AdminRole.SUPERADMIN);
+      // Input validation
+      if (adminId.isEmpty()) {
+         JOptionPane.showMessageDialog(this, 
+             "Please enter Admin ID", 
+             "Input Required", 
+             JOptionPane.WARNING_MESSAGE);
+         adminIdField.requestFocus();
+         return;
+      }
+      
+      if (password.isEmpty()) {
+         JOptionPane.showMessageDialog(this, 
+             "Please enter password", 
+             "Input Required", 
+             JOptionPane.WARNING_MESSAGE);
+         passwordField.requestFocus();
+         return;
+      }
+
+      try {
+         // Use SqlAdminManager for authentication
+         System.out.println("🔐 [AdminLogin] Attempting login for: " + adminId);
+         if (SqlAdminManager.validateAdminCredentials(adminId, password)) {
+            // Get admin details
+            String adminName = SqlAdminManager.getAdminNameById(adminId);
+            String role = SqlAdminManager.getRoleById(adminId);
+            
+            if (adminName == null || adminName.isEmpty()) {
+               adminName = adminId;
+            }
+            if (role == null || role.isEmpty()) {
+               role = "UNKNOWN";
+            }
+            
+            System.out.println("✅ [AdminLogin] Login successful for: " + adminId);
+            JOptionPane.showMessageDialog(this, 
+                "<html><b>Welcome, " + adminName + "!</b><br>" +
+                "Role: " + role + "</html>",
+                "Login Successful", 
+                JOptionPane.INFORMATION_MESSAGE);
+                
+            this.setVisible(false);
+            
+            // Open AdminDashboard - adjust this based on your AdminDashboard constructor
+            (new AdminDashboard(adminId, this)).setVisible(true);
+         } else {
+            System.out.println("❌ [AdminLogin] Login failed for: " + adminId);
+            JOptionPane.showMessageDialog(this,
+                "<html><b>Login Failed</b><br><br>" +
+                "Possible reasons:<br>" +
+                "1. Wrong Admin ID or Password<br>" +
+                "2. Admin account is disabled<br>" +
+                "3. Database connection issue<br><br>" +
+                "<i>Click 'Forgot Password?' for assistance</i></html>",
+             "Authentication Failed",
+             JOptionPane.ERROR_MESSAGE);
+         }
+      } catch (Exception ex) {
+         System.err.println("❌ [AdminLogin] Exception during login: " + ex.getMessage());
+         ex.printStackTrace();
+         JOptionPane.showMessageDialog(this,
+             "<html><b>Login Error</b><br><br>" +
+             "An unexpected error occurred:<br>" +
+             ex.getClass().getSimpleName() + ": " + ex.getMessage() + "<br><br>" +
+             "Please check the console for more details.</html>",
+             "System Error",
+             JOptionPane.ERROR_MESSAGE);
+      }
+   }
+   
+   private void handleForgotPassword() {
+      String[] options = {"Reset My Password", "Get Help Information", "Cancel"};
+      
+      int choice = JOptionPane.showOptionDialog(this,
+          "<html><b>Password Assistance</b><br><br>" +
+          "<b>Option 1:</b> Reset your password<br>" +
+          "<b>Option 2:</b> Get help information<br>",
+          "Forgot Password",
+          JOptionPane.DEFAULT_OPTION,
+          JOptionPane.QUESTION_MESSAGE,
+          null,
+          options,
+          options[0]);
+      
+      if (choice == 0) {
+         showPasswordResetDialog();
+      } else if (choice == 1) {
+         showPasswordResetInfo();
+      }
+   }
+   
+   private void showPasswordResetDialog() {
+      try {
+         String adminId = JOptionPane.showInputDialog(this,
+             "Enter your Admin ID:",
+             "Password Reset",
+             JOptionPane.QUESTION_MESSAGE);
+         
+         if (adminId == null || adminId.trim().isEmpty()) {
+            return; // User cancelled
+         }
+         
+         adminId = adminId.trim();
+         
+         // Verify admin exists
+         if (!SqlAdminManager.adminExists(adminId)) {
+            JOptionPane.showMessageDialog(this,
+                "Admin ID not found: " + adminId,
+                "Not Found",
+                JOptionPane.ERROR_MESSAGE);
+            return;
+         }
+         
+         String newPassword = JOptionPane.showInputDialog(this,
+             "Enter new password (min 6 characters):",
+             "New Password",
+             JOptionPane.QUESTION_MESSAGE);
+         
+         if (newPassword == null || newPassword.length() < 8) {
+            JOptionPane.showMessageDialog(this,
+                "<html><b>Invalid Password</b><br><br>" +
+                "Password must meet the following requirements:<br>" +
+                "• At least 8 characters<br>" +
+                "• At least one uppercase letter (A-Z)<br>" +
+                "• At least one lowercase letter (a-z)<br>" +
+                "• At least one digit (0-9)<br><br>" +
+                "Example: Password123</html>",
+                "Invalid Password",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+         }
+         
+         // Check password strength
+         if (!isPasswordStrong(newPassword)) {
+            JOptionPane.showMessageDialog(this,
+                "<html><b>Weak Password</b><br><br>" +
+                "Password must contain:<br>" +
+                "• At least one uppercase letter (A-Z)<br>" +
+                "• At least one lowercase letter (a-z)<br>" +
+                "• At least one digit (0-9)<br><br>" +
+                "Example: Password123</html>",
+                "Weak Password",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+         }
+         
+         String confirmPassword = JOptionPane.showInputDialog(this,
+             "Confirm new password:",
+             "Confirm Password",
+             JOptionPane.QUESTION_MESSAGE);
+         
+         if (!newPassword.equals(confirmPassword)) {
+            JOptionPane.showMessageDialog(this,
+                "Passwords do not match",
+                "Error",
+                JOptionPane.ERROR_MESSAGE);
+            return;
+         }
+         
+         // Perform password reset
+         System.out.println("🔐 [AdminLogin] Processing password reset for: " + adminId);
+         boolean success = SqlAdminManager.forgotPassword(adminId, newPassword);
+         if (success) {
+            System.out.println("✅ [AdminLogin] Password reset successful for: " + adminId);
+            JOptionPane.showMessageDialog(this,
+                "<html><b>Password Reset Successful!</b><br><br>" +
+                "Admin ID: " + adminId + "<br>" +
+                "You can now login with your new password.</html>",
+                "Success",
+                JOptionPane.INFORMATION_MESSAGE);
+         } else {
+            System.out.println("❌ [AdminLogin] Password reset failed for: " + adminId);
+            JOptionPane.showMessageDialog(this,
+                "Password reset failed. Please try again or contact system administrator.",
+                "Error",
+                JOptionPane.ERROR_MESSAGE);
+         }
+      } catch (Exception ex) {
+         System.err.println("❌ [AdminLogin] Exception during password reset: " + ex.getMessage());
+         ex.printStackTrace();
+         JOptionPane.showMessageDialog(this,
+             "<html><b>Password Reset Error</b><br><br>" +
+             "An error occurred: " + ex.getMessage() + "<br><br>" +
+             "Please check the console.</html>",
+             "Error",
+             JOptionPane.ERROR_MESSAGE);
+      }
+   }
+   
+   private boolean isPasswordStrong(String password) {
+      if (password == null || password.length() < 8) {
+         return false;
+      }
+      
+      boolean hasUpper = false;
+      boolean hasLower = false;
+      boolean hasDigit = false;
+      
+      for (char c : password.toCharArray()) {
+         if (Character.isUpperCase(c)) hasUpper = true;
+         if (Character.isLowerCase(c)) hasLower = true;
+         if (Character.isDigit(c)) hasDigit = true;
+      }
+      
+      return hasUpper && hasLower && hasDigit;
+   }
+   
+   private void showPasswordResetInfo() {
+      JOptionPane.showMessageDialog(this,
+          "<html><b>Password Reset Information</b><br><br>" +
+          "<b>If you forgot your password:</b><br>" +
+          "1. Select 'Reset My Password' option<br>" +
+          "2. Enter your Admin ID<br>" +
+          "3. Set a new password<br><br>" +
+          
+          "<b>If you don't know your Admin ID:</b><br>" +
+          "1. Ask a SuperAdmin for assistance<br>" +
+          "2. Use default admin if available<br>" +
+          "3. Contact system administrator<br><br>" +
+          
+          "<b>Default Admin (if configured):</b><br>" +
+          "• ID: <b>superadmin</b><br>" +
+          "• Password: <b>super123</b><br><br>" +
+          
+          "<i>Note: Default admin may not be available in all systems.</i></html>",
+          "Password Reset Help",
+          JOptionPane.INFORMATION_MESSAGE);
+   }
+   
+   private void handleEmergencyButton() {
+      String[] options = {"Create Default SuperAdmin", "Reset All Passwords", "Migrate from Text File", "Cancel"};
+      
+      int choice = JOptionPane.showOptionDialog(this,
+          "<html><b>⚠️ Emergency Admin Setup</b><br><br>" +
+          "No admin accounts found or system error detected.<br>" +
+          "Choose an option:</html>",
+          "Emergency Setup",
+          JOptionPane.DEFAULT_OPTION,
+          JOptionPane.WARNING_MESSAGE,
+          null,
+          options,
+          options[0]);
+      
+      if (choice == 0) {
+         // Create default SuperAdmin
+         createDefaultSuperAdmin();
+      }
+      else if (choice == 1) {
+         // Reset all passwords
+         resetAllPasswords();
+      }
+      else if (choice == 2) {
+         // Migrate from text file
+         migrateFromTextFile();
+      }
+   }
+   
+   private void createDefaultSuperAdmin() {
+      int confirm = JOptionPane.showConfirmDialog(this,
+          "<html><b>Create Default SuperAdmin?</b><br><br>" +
+          "This will create a default admin with:<br>" +
+          "• ID: <b>superadmin</b><br>" +
+          "• Password: <b>super123</b><br>" +
+          "• Role: SuperAdmin<br><br>" +
+          "<i>You must change this password after first login!</i></html>",
+          "Confirm Creation",
+          JOptionPane.YES_NO_OPTION);
+      
+      if (confirm == JOptionPane.YES_OPTION) {
+         boolean success = SqlAdminManager.addAdmin("superadmin", "System Administrator", "super123", AdminRole.SUPERADMIN);
+         
          if (success) {
             JOptionPane.showMessageDialog(this,
-                "Default admin created!\n\n" +
-                "ID: admin\n" +
-                "Password: admin123\n\n" +
-                "Use these credentials to login.",
-                "Success", JOptionPane.INFORMATION_MESSAGE);
-            adminIdField.setText("admin");
-            passwordField.setText("admin123");
-         }
-      }
-      else if (option == JOptionPane.NO_OPTION) {
-         // Reset all passwords
-         int confirm = JOptionPane.showConfirmDialog(this,
-             "This will reset ALL admin passwords to 'Reset123!'.\n" +
-             "Continue?",
-             "Confirm Reset", JOptionPane.YES_NO_OPTION);
-         
-         if (confirm == JOptionPane.YES_OPTION) {
-            // Call emergency reset method
-            SqlAdminManager.emergencyResetAllAdminPasswords();
+                "<html><b>Default SuperAdmin Created!</b><br><br>" +
+                "Login with:<br>" +
+                "• ID: <b>superadmin</b><br>" +
+                "• Password: <b>super123</b><br><br>" +
+                "<i>⚠️ Change password immediately after login!</i></html>",
+                "Success",
+                JOptionPane.INFORMATION_MESSAGE);
+            
+            // Pre-fill the fields for convenience
+            adminIdField.setText("superadmin");
+            passwordField.setText("super123");
+            
+            // Hide emergency button
+            emergencyButton.setVisible(false);
+         } else {
             JOptionPane.showMessageDialog(this,
-                "All admin passwords reset to: Reset123!\n\n" +
-                "Try your admin ID with password: Reset123!",
-                "Passwords Reset", JOptionPane.INFORMATION_MESSAGE);
+                "Failed to create default SuperAdmin. Database may not be accessible.",
+                "Creation Failed",
+                JOptionPane.ERROR_MESSAGE);
          }
       }
-      else if (option == JOptionPane.CANCEL_OPTION) {
-         // Migrate from text file
-         int migrated = SqlAdminManager.migrateAllAdminsFromTextFile();
-         JOptionPane.showMessageDialog(this,
-             "Migrated " + migrated + " admins from text file.\n" +
-             "All passwords reset to: Reset123!\n" +
-             "Use your admin ID with password: Reset123!",
-             "Migration Complete", JOptionPane.INFORMATION_MESSAGE);
-      }
+   }
+   
+   private void resetAllPasswords() {
+      int confirm = JOptionPane.showConfirmDialog(this,
+          "<html><b>⚠️ Reset ALL Admin Passwords?</b><br><br>" +
+          "This will reset <b>ALL</b> admin passwords to: <b>Reset123!</b><br>" +
+          "All admins will need to reset their password on next login.<br><br>" +
+          "<i>This action cannot be undone!</i></html>",
+          "Confirm Reset",
+          JOptionPane.YES_NO_OPTION,
+          JOptionPane.WARNING_MESSAGE);
       
-      // Hide emergency button after setup
-      emergencyButton.setVisible(false);
+      if (confirm == JOptionPane.YES_OPTION) {
+         SqlAdminManager.emergencyResetAllAdminPasswords();
+         
+         JOptionPane.showMessageDialog(this,
+             "<html><b>Passwords Reset Complete!</b><br><br>" +
+             "All admin passwords have been reset to: <b>Reset123!</b><br><br>" +
+             "Use your Admin ID with password: <b>Reset123!</b><br>" +
+             "You will be prompted to change it on first login.</html>",
+             "Passwords Reset",
+             JOptionPane.INFORMATION_MESSAGE);
+      }
+   }
+   
+   private void migrateFromTextFile() {
+      int confirm = JOptionPane.showConfirmDialog(this,
+          "<html><b>Migrate Admins from Text File?</b><br><br>" +
+          "This will import all admins from the old text file.<br>" +
+          "Each migrated admin will get password: <b>Reset123!</b><br>" +
+          "Admins already in SQL will be skipped.<br><br>" +
+          "Proceed?</html>",
+          "Confirm Migration",
+          JOptionPane.YES_NO_OPTION);
+      
+      if (confirm == JOptionPane.YES_OPTION) {
+         int migrated = SqlAdminManager.migrateAllAdminsFromTextFile();
+         
+         JOptionPane.showMessageDialog(this,
+             "<html><b>Migration Complete!</b><br><br>" +
+             "Migrated <b>" + migrated + "</b> admin(s) from text file.<br>" +
+             "All passwords set to: <b>Reset123!</b><br><br>" +
+             "Use your Admin ID with password: <b>Reset123!</b><br>" +
+             "You will be prompted to change it on first login.</html>",
+             "Migration Complete",
+             JOptionPane.INFORMATION_MESSAGE);
+         
+         // Hide emergency button if admins were migrated
+         if (migrated > 0) {
+            emergencyButton.setVisible(false);
+         }
+      }
    }
    
    // Main method for testing

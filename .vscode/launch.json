@@ -6,6 +6,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "DataMigrationUtility",
+            "request": "launch",
+            "mainClass": "Data.DataMigrationUtility",
+            "projectName": "Voting System_5864cadc"
+        },
+        {
+            "type": "java",
             "name": "RunAdminFix",
             "request": "launch",
             "mainClass": "RunAdminFix",

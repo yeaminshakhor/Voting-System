@@ -402,52 +402,6 @@ public class ElectionData {
     /**
      * Auto-migrate plaintext password to hashed password.
      */
-    private static void migrateVoterToHashedPassword(String voterId, String plainPassword) {
-        String salt = SecurityUtils.generateSalt();
-        String hashedPassword = SecurityUtils.hashPassword(plainPassword, salt);
-        
-        if (hashedPassword == null) {
-            System.out.println("❌ Failed to hash password for migration");
-            return;
-        }
-        
-        // Update voter file
-        List<String> lines = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(VOTER_FILE))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) continue;
-                String[] parts = line.split(":");
-                if (parts.length >= 3 && parts[0].equals(voterId)) {
-                    lines.add(parts[0] + ":" + parts[1] + ":" + hashedPassword);
-                } else {
-                    lines.add(line);
-                }
-            }
-        } catch (IOException e) {
-            System.out.println("❌ Error reading voter file for migration: " + e.getMessage());
-            return;
-        }
-        
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(VOTER_FILE))) {
-            for (String line : lines) {
-                writer.write(line);
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            System.out.println("❌ Error writing voter file during migration: " + e.getMessage());
-            return;
-        }
-        
-        // Save salt
-        try (BufferedWriter saltWriter = new BufferedWriter(new FileWriter(VOTER_SALT_FILE, true))) {
-            saltWriter.write(voterId + ":" + salt);
-            saltWriter.newLine();
-            System.out.println("✅ Auto-migrated voter " + voterId + " to hashed password");
-        } catch (IOException e) {
-            System.out.println("⚠️ Voter migrated but failed to save salt: " + e.getMessage());
-        }
-    }
 
     /**
      * Get voter's salt from salt file.
@@ -1409,11 +1363,11 @@ public class ElectionData {
     // -------------------- PORTAL INTEGRATION FUNCTIONS --------------------
 
     /**
-     * Register a new voter from portal data.
-     * Creates voter without password (requires self-registration).
+     * Register a new voter from portal data with email and image.
+     * Format: id:name:email:imagePath
      * Also stores extended profile information (DOB, blood group, department).
      */
-    public static boolean addVoterFromPortal(String voterData, String dob, String bloodGroup, String department) {
+    public static boolean addVoterFromPortal(String voterData, String dob, String bloodGroup, String department, String imagePath) {
         // Format: id:name:email
         String[] parts = voterData.split(":");
         if (parts.length < 2) {
@@ -1431,36 +1385,25 @@ public class ElectionData {
             return false;
         }
         
-        // Add voter with empty password (requires self-registration)
-        String emptyPasswordHash = SecurityUtils.generateEmptyPasswordHash();
-        String salt = SecurityUtils.generateSalt();
+        // Use SQL database with image support
+        boolean success = SqlElectionDataManager.addVoterWithEmailAndImage(voterId, voterName, voterEmail, imagePath);
         
-        try {
-            // Add to voter file
-            try (PrintWriter writer = new PrintWriter(new FileWriter(VOTER_FILE, true))) {
-                writer.println(voterId + ":" + voterName + ":" + emptyPasswordHash);
-                writer.flush();  // Explicit flush to disk
-            }
-            
-            // Save salt
-            try (PrintWriter writer = new PrintWriter(new FileWriter(VOTER_SALT_FILE, true))) {
-                writer.println(voterId + ":" + salt);
-                writer.flush();  // Explicit flush to disk
-            }
-            
-            // Save extended voter info (DOB, blood group, department, email)
-            saveExtendedVoterInfo(voterId, dob, bloodGroup, department, voterEmail);
-            
+        if (success) {
+            System.out.println("✅ Voter added from portal: " + voterId + " (" + voterName + ")");
             // Log in audit
             AuditLogger.logSystemAction("VOTER_IMPORTED", "Voter imported from portal: " + voterId + " (" + voterName + ")");
-            
-            System.out.println("✅ Voter added from portal: " + voterId + " (" + voterName + ")");
-            return true;
-        } catch (IOException e) {
-            System.out.println("❌ Error adding voter from portal: " + e.getMessage());
-            e.printStackTrace();
-            return false;
         }
+        
+        return success;
+    }
+    
+    /**
+     * Register a new voter from portal data with email.
+     * Format: id:name:email
+     * Also stores extended profile information (DOB, blood group, department).
+     */
+    public static boolean addVoterFromPortal(String voterData, String dob, String bloodGroup, String department) {
+        return addVoterFromPortal(voterData, dob, bloodGroup, department, "");
     }
     
     /**
@@ -1468,27 +1411,6 @@ public class ElectionData {
      */
     public static boolean addVoterFromPortal(String voterData) {
         return addVoterFromPortal(voterData, "", "", "");
-    }
-    
-    /**
-     * Save extended voter information (DOB, blood group, department, email)
-     * Format: id:dob:blood_group:department:email
-     */
-    private static void saveExtendedVoterInfo(String voterId, String dob, String bloodGroup, String department, String email) {
-        try {
-            // Create info file if it doesn't exist, then append
-            try (PrintWriter writer = new PrintWriter(new FileWriter(VOTER_INFO_FILE, true))) {
-                writer.println(voterId + ":" + (dob == null ? "" : dob) + ":" + 
-                              (bloodGroup == null ? "" : bloodGroup) + ":" + 
-                              (department == null ? "" : department) + ":" + 
-                              (email == null ? "" : email));
-                writer.flush();  // Explicit flush to disk
-            }
-            System.out.println("✓ Extended voter info saved: " + voterId);
-        } catch (IOException e) {
-            System.out.println("⚠️  Warning: Could not save extended voter info: " + e.getMessage());
-            // Don't fail the whole import if extended info fails
-        }
     }
     
     /**
@@ -1675,9 +1597,11 @@ public class ElectionData {
                     String id = parts[0].trim();
                     String name = parts[1].trim();
                     String email = parts.length > 2 ? parts[2].trim() : "";
+                    String imagePath = parts.length > 3 ? parts[3].trim() : "";
                     
                     String voterData = id + ":" + name + ":" + email;
-                    if (addVoterFromPortal(voterData)) {
+                    // Call the version with image path support
+                    if (addVoterFromPortal(voterData, "", "", "", imagePath)) {
                         imported++;
                     } else {
                         failed++;

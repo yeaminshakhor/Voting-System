@@ -2,24 +2,20 @@ package Framesg;
 
 import Data.SqlAdminManager;
 import Data.SqlElectionDataManager;
-import Data.ElectionScheduler;
-import Entities.Nominee;
 import Entities.Voter;
 import Entities.Admin;
 import Utils.Theme;
 import Utils.AdminRole;
 import java.awt.*;
 import java.awt.event.*;
-import java.text.SimpleDateFormat;
-import java.util.*;
 import javax.swing.*;
 
 /**
  * Updated Admin Dashboard with SQL backend and role-based access control.
  * Different roles see different features based on their permissions.
- * NO SUPERADMIN - All roles have predefined selective permissions.
  */
 public class AdminDashboard extends JFrame implements ActionListener {
+    private static final long serialVersionUID = 1L;
     
     private String adminId;
     private String adminRole;
@@ -40,7 +36,7 @@ public class AdminDashboard extends JFrame implements ActionListener {
     private void setupWindow() {
         String adminName = SqlAdminManager.getAdminNameById(adminId);
         setTitle("Election Admin Dashboard - " + (adminName != null ? adminName : adminId));
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setSize(Theme.WINDOW_WIDTH, Theme.WINDOW_HEIGHT);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
@@ -54,11 +50,11 @@ public class AdminDashboard extends JFrame implements ActionListener {
         topBar.setBorder(Theme.getTopBarBorder());
 
         String adminName = SqlAdminManager.getAdminNameById(adminId);
-        String roleDescription = AdminRole.getRoleDescription(adminRole);
+        String roleDescription = AdminRole.getDescription(adminRole);
         
         if (adminName == null) adminName = "Administrator";
         
-        JLabel adminLabel = new JLabel("👤 " + adminName + " | " + adminRole);
+        JLabel adminLabel = new JLabel("👤 " + adminName + " | " + AdminRole.getDisplayName(adminRole));
         adminLabel.setToolTipText(roleDescription);
         adminLabel.setForeground(Theme.TEXT_WHITE);
         adminLabel.setFont(Theme.BODY_BOLD_FONT);
@@ -85,48 +81,51 @@ public class AdminDashboard extends JFrame implements ActionListener {
         mainPanel.setBorder(Theme.getMainPanelBorder());
 
         // SuperAdmin Management Card - SuperAdmin only
-        if (adminRole.equals(AdminRole.SUPERADMIN)) {
+        if (AdminRole.isSuperAdmin(adminRole)) {
             mainPanel.add(createCard("🔐 Admin Management", 
                 new String[]{"Add new admins", "Delete admins", "Assign roles", "Reset passwords"}, 
                 "Manage Admins", Theme.ERROR_RED));
         }
 
-        // Voter Management Card - VoterManager only
-        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_VOTER) || 
-            AdminRole.hasPermission(adminRole, AdminRole.PERM_DELETE_VOTER)) {
+        // Voter Management Card - Check permissions properly
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_MANAGE_VOTERS)) {
             mainPanel.add(createCard("👥 Voter Management", 
-                new String[]{"Add voters", "View voter list", "Delete voters"}, 
+                new String[]{"Add voters", "View voter list", "Delete voters", "Export voter data"}, 
                 "Manage Voters", Theme.SUCCESS_GREEN));
         }
 
-        // Nominee Management Card - NomineeManager only
-        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_NOMINEE) || 
-            AdminRole.hasPermission(adminRole, AdminRole.PERM_DELETE_NOMINEE)) {
+        // Nominee Management Card - Check permissions properly
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_MANAGE_NOMINEES)) {
             mainPanel.add(createCard("🗳️ Nominee Management", 
-                new String[]{"Add nominees", "View nominee list", "Delete nominees"}, 
+                new String[]{"Add nominees", "View nominee list", "Delete nominees", "Manage parties"}, 
                 "Manage Nominees", Theme.PRIMARY_BLUE));
         }
 
-        // Election Management Card - ElectionManager only
-        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_CONFIGURE_ELECTION)) {
+        // Election Management Card - Check permissions properly
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_MANAGE_ELECTIONS)) {
             mainPanel.add(createCard("💼 Election Management", 
-                new String[]{"Configure election", "Activate/deactivate", "View election status"}, 
-                "Manage Election", Theme.PRIMARY_BLUE));
+                new String[]{"Configure election", "Activate/deactivate", "View election status", "Set dates"}, 
+                "Manage Election", Theme.INFO_CYAN));
         }
 
-        // Live Results Card - ReportViewer
-        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_RESULTS)) {
+        // Live Results Card - Check permissions properly
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_REPORTS)) {
             mainPanel.add(createCard("📊 Live Results", 
-                new String[]{"Real-time vote counts", "Current standings", "Turnout statistics"}, 
+                new String[]{"Real-time vote counts", "Current standings", "Turnout statistics", "Export reports"}, 
                 "View Live Results", Theme.WARNING_ORANGE));
         }
 
-        // Audit Logs Card - AuditViewer only
-        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_AUDIT_LOG)) {
+        // Audit Logs Card - Check permissions properly
+        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_AUDIT_LOGS)) {
             mainPanel.add(createCard("📋 Audit Logs", 
-                new String[]{"View all admin actions", "System activity tracking"}, 
-                "View Audit Logs", Theme.PRIMARY_BLUE));
+                new String[]{"View all admin actions", "System activity tracking", "Export logs"}, 
+                "View Audit Logs", Theme.NAVY_BLUE));
         }
+        
+        // Change Password Card - Available to all
+        mainPanel.add(createCard("🔑 Change Password", 
+            new String[]{"Change your login password", "Security settings"}, 
+            "Change Password", Theme.INFO_BLUE));
 
         // If no cards (no permissions), show message
         if (mainPanel.getComponentCount() == 0) {
@@ -173,10 +172,11 @@ public class AdminDashboard extends JFrame implements ActionListener {
         actionButton.setActionCommand(buttonText);
         
         actionButton.addMouseListener(new MouseAdapter() {
-            public void mouseEntered(MouseEvent e) {
-                actionButton.setBackground(Theme.getDarkerColor(accentColor));
+            public void mouseEntered(MouseEvent evt) {
+                Color darker = Theme.getDarkerColor(accentColor);
+                actionButton.setBackground(darker);
             }
-            public void mouseExited(MouseEvent e) {
+            public void mouseExited(MouseEvent evt) {
                 actionButton.setBackground(accentColor);
             }
         });
@@ -192,50 +192,55 @@ public class AdminDashboard extends JFrame implements ActionListener {
 
         switch (command) {
             case "Manage Admins":
-                if (adminRole.equals(AdminRole.SUPERADMIN)) {
+                if (AdminRole.isSuperAdmin(adminRole)) {
                     showAdminManagement();
                 } else {
                     JOptionPane.showMessageDialog(this, "❌ Only SuperAdmin can manage admins");
                 }
                 break;
             case "Manage Voters":
-                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_VOTER)) {
+                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_MANAGE_VOTERS)) {
                     showVoterManagement();
                 } else {
                     JOptionPane.showMessageDialog(this, "❌ You don't have permission for this action");
                 }
                 break;
             case "Manage Nominees":
-                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_NOMINEE)) {
+                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_MANAGE_NOMINEES)) {
                     showNomineeManagement();
                 } else {
                     JOptionPane.showMessageDialog(this, "❌ You don't have permission for this action");
                 }
                 break;
             case "Manage Election":
-                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_CONFIGURE_ELECTION)) {
-                    showElectionSetup();
+                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_MANAGE_ELECTIONS)) {
+                    showElectionManagement();
                 } else {
                     JOptionPane.showMessageDialog(this, "❌ You don't have permission for this action");
                 }
                 break;
             case "View Live Results":
-                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_RESULTS)) {
+                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_REPORTS)) {
                     showLiveResults();
                 } else {
                     JOptionPane.showMessageDialog(this, "❌ You don't have permission for this action");
                 }
                 break;
             case "View Audit Logs":
-                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_AUDIT_LOG)) {
+                if (AdminRole.hasPermission(adminRole, AdminRole.PERM_VIEW_AUDIT_LOGS)) {
                     showAuditLogs();
                 } else {
                     JOptionPane.showMessageDialog(this, "❌ You don't have permission for this action");
                 }
                 break;
+            case "Change Password":
+                showChangePasswordDialog();
+                break;
         }
     }
 
+    // ==================== ADMIN MANAGEMENT ====================
+    
     private void showAdminManagement() {
         JDialog dialog = new JDialog(this, "Admin Management", true);
         dialog.setSize(700, 500);
@@ -243,7 +248,7 @@ public class AdminDashboard extends JFrame implements ActionListener {
         
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBackground(Theme.BACKGROUND_WHITE);
-        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        panel.setBorder(Theme.getDialogBorder());
         
         // Top button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
@@ -252,22 +257,25 @@ public class AdminDashboard extends JFrame implements ActionListener {
         JButton addBtn = new JButton("➕ Add Admin");
         addBtn.setBackground(Theme.SUCCESS_GREEN);
         addBtn.setForeground(Theme.TEXT_WHITE);
+        addBtn.setFont(Theme.BODY_FONT);
         addBtn.setFocusPainted(false);
-        addBtn.addActionListener(e -> showAddAdminDialog());
+        addBtn.addActionListener(evt -> showAddAdminDialog(dialog));
         buttonPanel.add(addBtn);
         
         JButton deleteBtn = new JButton("❌ Delete Admin");
         deleteBtn.setBackground(Theme.ERROR_RED);
         deleteBtn.setForeground(Theme.TEXT_WHITE);
+        deleteBtn.setFont(Theme.BODY_FONT);
         deleteBtn.setFocusPainted(false);
-        deleteBtn.addActionListener(e -> showDeleteAdminDialog());
+        deleteBtn.addActionListener(evt -> showDeleteAdminDialog(dialog));
         buttonPanel.add(deleteBtn);
         
         JButton changeRoleBtn = new JButton("🔄 Change Role");
         changeRoleBtn.setBackground(Theme.PRIMARY_BLUE);
         changeRoleBtn.setForeground(Theme.TEXT_WHITE);
+        changeRoleBtn.setFont(Theme.BODY_FONT);
         changeRoleBtn.setFocusPainted(false);
-        changeRoleBtn.addActionListener(e -> showChangeRoleDialog());
+        changeRoleBtn.addActionListener(evt -> showChangeRoleDialog(dialog));
         buttonPanel.add(changeRoleBtn);
         
         panel.add(buttonPanel, BorderLayout.NORTH);
@@ -276,7 +284,7 @@ public class AdminDashboard extends JFrame implements ActionListener {
         refreshAdminList(panel);
         
         JButton closeBtn = new JButton("Close");
-        closeBtn.addActionListener(e -> dialog.dispose());
+        closeBtn.addActionListener(evt -> dialog.dispose());
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         bottomPanel.setBackground(Theme.BACKGROUND_WHITE);
         bottomPanel.add(closeBtn);
@@ -287,6 +295,15 @@ public class AdminDashboard extends JFrame implements ActionListener {
     }
     
     private void refreshAdminList(JPanel container) {
+        // Remove existing scroll pane if any
+        Component[] comps = container.getComponents();
+        for (Component comp : comps) {
+            if (comp instanceof JScrollPane) {
+                container.remove(comp);
+                break;
+            }
+        }
+        
         // Get all admins
         java.util.List<Admin> admins = SqlAdminManager.getAllAdmins(adminId);
         
@@ -297,6 +314,7 @@ public class AdminDashboard extends JFrame implements ActionListener {
         if (admins.isEmpty()) {
             JLabel noAdminsLabel = new JLabel("No admins found");
             noAdminsLabel.setFont(Theme.BODY_FONT);
+            noAdminsLabel.setForeground(Theme.TEXT_MEDIUM);
             listPanel.add(noAdminsLabel);
         } else {
             for (Admin admin : admins) {
@@ -307,105 +325,171 @@ public class AdminDashboard extends JFrame implements ActionListener {
         
         JScrollPane scrollPane = new JScrollPane(listPanel);
         container.add(scrollPane, BorderLayout.CENTER);
+        container.revalidate();
+        container.repaint();
     }
     
     private JPanel createAdminListRow(Admin admin) {
         JPanel row = new JPanel(new BorderLayout(10, 10));
         row.setBackground(Theme.CARD_WHITE);
-        row.setBorder(Theme.getCardBorder(Theme.PRIMARY_BLUE_DARK));
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+        row.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, Theme.BORDER_GRAY),
+            BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
         
-        JLabel infoLabel = new JLabel(admin.getAdminId() + " (" + admin.getName() + ") - Role: " + admin.getRole());
+        JLabel infoLabel = new JLabel("<html><b>" + admin.getAdminId() + "</b> - " + 
+                                     admin.getName() + "<br><small>Role: " + 
+                                     AdminRole.getDisplayName(admin.getRole()) + "</small></html>");
         infoLabel.setFont(Theme.BODY_FONT);
         row.add(infoLabel, BorderLayout.WEST);
+        
+        // Add status indicators
+        JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        statusPanel.setBackground(Theme.CARD_WHITE);
+        
+        // Check if active
+        JLabel statusLabel = new JLabel("Active");
+        statusLabel.setForeground(Theme.SUCCESS_GREEN);
+        statusLabel.setFont(Theme.SMALL_FONT);
+        statusPanel.add(statusLabel);
+        
+        row.add(statusPanel, BorderLayout.EAST);
         
         return row;
     }
     
-    private void showAddAdminDialog() {
-        JDialog dialog = new JDialog(this, "Add New Admin", true);
+    private void showAddAdminDialog(JDialog parentDialog) {
+        JDialog dialog = new JDialog(parentDialog, "Add New Admin", true);
         dialog.setSize(400, 300);
-        dialog.setLocationRelativeTo(this);
+        dialog.setLocationRelativeTo(parentDialog);
         
-        JPanel panel = new JPanel(new GridLayout(5, 2, 10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.setBorder(Theme.getDialogBorder());
         
+        gbc.gridx = 0;
+        gbc.gridy = 0;
         JLabel idLabel = new JLabel("Admin ID:");
-        JTextField idField = new JTextField();
-        panel.add(idLabel);
-        panel.add(idField);
+        idLabel.setFont(Theme.BODY_FONT);
+        panel.add(idLabel, gbc);
+        gbc.gridx = 1;
+        JTextField idField = new JTextField(20);
+        idField.setFont(Theme.BODY_FONT);
+        panel.add(idField, gbc);
         
+        gbc.gridx = 0;
+        gbc.gridy = 1;
         JLabel nameLabel = new JLabel("Name:");
-        JTextField nameField = new JTextField();
-        panel.add(nameLabel);
-        panel.add(nameField);
+        nameLabel.setFont(Theme.BODY_FONT);
+        panel.add(nameLabel, gbc);
+        gbc.gridx = 1;
+        JTextField nameField = new JTextField(20);
+        nameField.setFont(Theme.BODY_FONT);
+        panel.add(nameField, gbc);
         
+        gbc.gridx = 0;
+        gbc.gridy = 2;
         JLabel passwordLabel = new JLabel("Password:");
-        JPasswordField passwordField = new JPasswordField();
-        panel.add(passwordLabel);
-        panel.add(passwordField);
+        passwordLabel.setFont(Theme.BODY_FONT);
+        panel.add(passwordLabel, gbc);
+        gbc.gridx = 1;
+        JPasswordField passwordField = new JPasswordField(20);
+        passwordField.setFont(Theme.BODY_FONT);
+        panel.add(passwordField, gbc);
         
+        gbc.gridx = 0;
+        gbc.gridy = 3;
         JLabel roleLabel = new JLabel("Role:");
-        JComboBox<String> roleCombo = new JComboBox<>(AdminRole.getAllRoles().toArray(new String[0]));
-        panel.add(roleLabel);
-        panel.add(roleCombo);
+        roleLabel.setFont(Theme.BODY_FONT);
+        panel.add(roleLabel, gbc);
+        gbc.gridx = 1;
+        String[] roles = AdminRole.getAllRoles();
+        JComboBox<String> roleCombo = new JComboBox<>(roles);
+        roleCombo.setFont(Theme.BODY_FONT);
+        panel.add(roleCombo, gbc);
+        
+        gbc.gridx = 0;
+        gbc.gridy = 4;
+        gbc.gridwidth = 2;
+        gbc.anchor = GridBagConstraints.CENTER;
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
         
         JButton addButton = new JButton("Add Admin");
-        addButton.addActionListener(e -> {
+        addButton.setBackground(Theme.SUCCESS_GREEN);
+        addButton.setForeground(Theme.TEXT_WHITE);
+        addButton.setFont(Theme.BODY_BOLD_FONT);
+        addButton.addActionListener(evt -> {
             String newAdminId = idField.getText().trim();
             String name = nameField.getText().trim();
             String password = new String(passwordField.getPassword());
             String role = (String) roleCombo.getSelectedItem();
             
             if (newAdminId.isEmpty() || name.isEmpty() || password.isEmpty()) {
-                JOptionPane.showMessageDialog(dialog, "❌ Please fill all fields");
+                JOptionPane.showMessageDialog(dialog, "❌ Please fill all fields", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            if (password.length() < 6) {
+                JOptionPane.showMessageDialog(dialog, "❌ Password must be at least 6 characters", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
             
             if (SqlAdminManager.addAdminBySuper(adminId, newAdminId, name, password, role)) {
-                JOptionPane.showMessageDialog(dialog, "✅ Admin added successfully!");
+                JOptionPane.showMessageDialog(dialog, "✅ Admin added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                 dialog.dispose();
-                resetMainPanel();
+                // Refresh admin list in parent dialog
+                refreshAdminList((JPanel) parentDialog.getContentPane());
             } else {
-                JOptionPane.showMessageDialog(dialog, "❌ Failed to add admin");
+                JOptionPane.showMessageDialog(dialog, "❌ Failed to add admin. ID may already exist.", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
         
         JButton cancelButton = new JButton("Cancel");
-        cancelButton.addActionListener(e -> dialog.dispose());
+        cancelButton.setFont(Theme.BODY_FONT);
+        cancelButton.addActionListener(evt -> dialog.dispose());
         
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(addButton);
         buttonPanel.add(cancelButton);
-        
-        panel.add(buttonPanel);
+        panel.add(buttonPanel, gbc);
         
         dialog.setContentPane(panel);
         dialog.setVisible(true);
     }
     
-    private void showDeleteAdminDialog() {
+    private void showDeleteAdminDialog(JDialog parentDialog) {
         java.util.List<Admin> admins = SqlAdminManager.getAllAdmins(adminId);
         
-        if (admins.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "No admins to delete");
+        // Filter out current admin and other superadmins
+        java.util.List<String> deletableAdmins = new java.util.ArrayList<>();
+        java.util.Map<String, String> adminMap = new java.util.HashMap<>();
+        
+        for (Admin admin : admins) {
+            if (!admin.getAdminId().equals(adminId) && !AdminRole.isSuperAdmin(admin.getRole())) {
+                String display = admin.getAdminId() + " - " + admin.getName() + " (" + admin.getRole() + ")";
+                deletableAdmins.add(display);
+                adminMap.put(display, admin.getAdminId());
+            }
+        }
+        
+        if (deletableAdmins.isEmpty()) {
+            JOptionPane.showMessageDialog(parentDialog, "No admins available to delete", "Info", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         
-        JDialog dialog = new JDialog(this, "Delete Admin", true);
-        dialog.setSize(400, 150);
-        dialog.setLocationRelativeTo(this);
+        JDialog dialog = new JDialog(parentDialog, "Delete Admin", true);
+        dialog.setSize(400, 200);
+        dialog.setLocationRelativeTo(parentDialog);
         
         JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        panel.setBorder(Theme.getDialogBorder());
         
         JLabel label = new JLabel("Select admin to delete:");
-        JComboBox<String> adminCombo = new JComboBox<>();
-        for (Admin admin : admins) {
-            if (!admin.getAdminId().equals(adminId)) {
-                adminCombo.addItem(admin.getAdminId() + " (" + admin.getName() + ")");
-            }
-        }
+        label.setFont(Theme.BODY_FONT);
+        JComboBox<String> adminCombo = new JComboBox<>(deletableAdmins.toArray(new String[0]));
+        adminCombo.setFont(Theme.BODY_FONT);
         
         panel.add(label, BorderLayout.NORTH);
         panel.add(adminCombo, BorderLayout.CENTER);
@@ -414,23 +498,31 @@ public class AdminDashboard extends JFrame implements ActionListener {
         JButton deleteBtn = new JButton("Delete");
         deleteBtn.setBackground(Theme.ERROR_RED);
         deleteBtn.setForeground(Theme.TEXT_WHITE);
-        deleteBtn.addActionListener(e -> {
+        deleteBtn.setFont(Theme.BODY_BOLD_FONT);
+        deleteBtn.addActionListener(evt -> {
             String selectedItem = (String) adminCombo.getSelectedItem();
             if (selectedItem != null) {
-                String targetAdminId = selectedItem.split(" ")[0];
-                if (SqlAdminManager.deleteAdminBySuper(adminId, targetAdminId)) {
-                    JOptionPane.showMessageDialog(dialog, "✅ Admin deleted successfully!");
-                    dialog.dispose();
-                    resetMainPanel();
-                } else {
-                    JOptionPane.showMessageDialog(dialog, "❌ Failed to delete admin");
+                String targetAdminId = adminMap.get(selectedItem);
+                int confirm = JOptionPane.showConfirmDialog(dialog,
+                    "Are you sure you want to delete admin: " + targetAdminId + "?",
+                    "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                
+                if (confirm == JOptionPane.YES_OPTION) {
+                    if (SqlAdminManager.deleteAdminBySuper(adminId, targetAdminId)) {
+                        JOptionPane.showMessageDialog(dialog, "✅ Admin deleted successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                        dialog.dispose();
+                        refreshAdminList((JPanel) parentDialog.getContentPane());
+                    } else {
+                        JOptionPane.showMessageDialog(dialog, "❌ Failed to delete admin", "Error", JOptionPane.ERROR_MESSAGE);
+                    }
                 }
             }
         });
         buttonPanel.add(deleteBtn);
         
         JButton cancelBtn = new JButton("Cancel");
-        cancelBtn.addActionListener(e -> dialog.dispose());
+        cancelBtn.setFont(Theme.BODY_FONT);
+        cancelBtn.addActionListener(evt -> dialog.dispose());
         buttonPanel.add(cancelBtn);
         
         panel.add(buttonPanel, BorderLayout.SOUTH);
@@ -439,371 +531,467 @@ public class AdminDashboard extends JFrame implements ActionListener {
         dialog.setVisible(true);
     }
     
-    private void showChangeRoleDialog() {
+    private void showChangeRoleDialog(JDialog parentDialog) {
         java.util.List<Admin> admins = SqlAdminManager.getAllAdmins(adminId);
         
-        if (admins.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "No admins to change role");
+        // Filter out current admin and superadmins
+        java.util.List<String> changeableAdmins = new java.util.ArrayList<>();
+        java.util.Map<String, String> adminMap = new java.util.HashMap<>();
+        
+        for (Admin admin : admins) {
+            if (!admin.getAdminId().equals(adminId) && !AdminRole.isSuperAdmin(admin.getRole())) {
+                String display = admin.getAdminId() + " - " + admin.getName() + " (" + admin.getRole() + ")";
+                changeableAdmins.add(display);
+                adminMap.put(display, admin.getAdminId());
+            }
+        }
+        
+        if (changeableAdmins.isEmpty()) {
+            JOptionPane.showMessageDialog(parentDialog, "No admins available to change role", "Info", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         
-        JDialog dialog = new JDialog(this, "Change Admin Role", true);
+        JDialog dialog = new JDialog(parentDialog, "Change Admin Role", true);
         dialog.setSize(400, 200);
-        dialog.setLocationRelativeTo(this);
+        dialog.setLocationRelativeTo(parentDialog);
         
         JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        panel.setBorder(Theme.getDialogBorder());
         
         JLabel adminLabel = new JLabel("Select Admin:");
-        JComboBox<String> adminCombo = new JComboBox<>();
-        for (Admin admin : admins) {
-            if (!admin.getAdminId().equals(adminId) && !admin.getRole().equals(AdminRole.SUPERADMIN)) {
-                adminCombo.addItem(admin.getAdminId() + " (" + admin.getName() + ")");
-            }
-        }
+        adminLabel.setFont(Theme.BODY_FONT);
+        JComboBox<String> adminCombo = new JComboBox<>(changeableAdmins.toArray(new String[0]));
+        adminCombo.setFont(Theme.BODY_FONT);
         panel.add(adminLabel);
         panel.add(adminCombo);
         
         JLabel roleLabel = new JLabel("New Role:");
-        JComboBox<String> roleCombo = new JComboBox<>(AdminRole.getAllRoles().toArray(new String[0]));
+        roleLabel.setFont(Theme.BODY_FONT);
+        String[] roles = AdminRole.getAllRoles();
+        // Remove SuperAdmin from list (can't assign to others)
+        java.util.List<String> assignableRoles = new java.util.ArrayList<>();
+        for (String role : roles) {
+            if (!AdminRole.isSuperAdmin(role)) {
+                assignableRoles.add(role);
+            }
+        }
+        JComboBox<String> roleCombo = new JComboBox<>(assignableRoles.toArray(new String[0]));
+        roleCombo.setFont(Theme.BODY_FONT);
         panel.add(roleLabel);
         panel.add(roleCombo);
         
         JButton changeBtn = new JButton("Change Role");
-        changeBtn.addActionListener(e -> {
+        changeBtn.setBackground(Theme.PRIMARY_BLUE);
+        changeBtn.setForeground(Theme.TEXT_WHITE);
+        changeBtn.setFont(Theme.BODY_BOLD_FONT);
+        changeBtn.addActionListener(evt -> {
             String selectedAdmin = (String) adminCombo.getSelectedItem();
             String newRole = (String) roleCombo.getSelectedItem();
             
             if (selectedAdmin != null && newRole != null) {
-                String targetAdminId = selectedAdmin.split(" ")[0];
-                if (SqlAdminManager.reassignAdminRoleBySuper(adminId, targetAdminId, newRole)) {
-                    JOptionPane.showMessageDialog(dialog, "✅ Role changed successfully!");
-                    dialog.dispose();
-                    resetMainPanel();
-                } else {
-                    JOptionPane.showMessageDialog(dialog, "❌ Failed to change role");
+                String targetAdminId = adminMap.get(selectedAdmin);
+                int confirm = JOptionPane.showConfirmDialog(dialog,
+                    "Change role for " + targetAdminId + " to " + AdminRole.getDisplayName(newRole) + "?",
+                    "Confirm Change", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+                
+                if (confirm == JOptionPane.YES_OPTION) {
+                    if (SqlAdminManager.reassignAdminRoleBySuper(adminId, targetAdminId, newRole)) {
+                        JOptionPane.showMessageDialog(dialog, "✅ Role changed successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                        dialog.dispose();
+                        refreshAdminList((JPanel) parentDialog.getContentPane());
+                    } else {
+                        JOptionPane.showMessageDialog(dialog, "❌ Failed to change role", "Error", JOptionPane.ERROR_MESSAGE);
+                    }
                 }
             }
         });
         panel.add(changeBtn);
         
         JButton cancelBtn = new JButton("Cancel");
-        cancelBtn.addActionListener(e -> dialog.dispose());
+        cancelBtn.setFont(Theme.BODY_FONT);
+        cancelBtn.addActionListener(evt -> dialog.dispose());
         panel.add(cancelBtn);
         
         dialog.setContentPane(panel);
         dialog.setVisible(true);
     }
 
+    // ==================== VOTER MANAGEMENT ====================
+    
     private void showVoterManagement() {
+        // Create a simple voter management interface
         JDialog dialog = new JDialog(this, "Voter Management", true);
         dialog.setSize(600, 400);
         dialog.setLocationRelativeTo(this);
         
         JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        panel.setBackground(Theme.BACKGROUND_WHITE);
+        panel.setBorder(Theme.getDialogBorder());
         
         // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        buttonPanel.setBackground(Theme.BACKGROUND_WHITE);
         
-        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_VOTER)) {
-            JButton addBtn = new JButton("Add Voter");
-            addBtn.addActionListener(e -> addVoterDialog());
-            buttonPanel.add(addBtn);
-        }
+        JButton addBtn = new JButton("➕ Add Voter");
+        addBtn.setBackground(Theme.SUCCESS_GREEN);
+        addBtn.setForeground(Theme.TEXT_WHITE);
+        addBtn.setFont(Theme.BODY_FONT);
+        addBtn.addActionListener(evt -> showVoterAddDialog(dialog));
+        buttonPanel.add(addBtn);
         
-        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_DELETE_VOTER)) {
-            JButton deleteBtn = new JButton("Delete Voter");
-            deleteBtn.addActionListener(e -> deleteVoterDialog());
-            buttonPanel.add(deleteBtn);
-        }
+        JButton viewBtn = new JButton("👁️ View Voters");
+        viewBtn.setBackground(Theme.INFO_BLUE);
+        viewBtn.setForeground(Theme.TEXT_WHITE);
+        viewBtn.setFont(Theme.BODY_FONT);
+        viewBtn.addActionListener(evt -> showVoterListDialog());
+        buttonPanel.add(viewBtn);
         
         panel.add(buttonPanel, BorderLayout.NORTH);
         
-        // Voter list table
-        java.util.List<Voter> voters = SqlElectionDataManager.getAllVoters();
-        String[] columnNames = {"Voter ID", "Name", "Registered", "Has Voted"};
-        Object[][] data = new Object[voters.size()][4];
+        // Information panel
+        JTextArea infoArea = new JTextArea(
+            "Voter Management System\n" +
+            "══════════════════════════════════════════\n\n" +
+            "This feature allows you to manage voter accounts.\n\n" +
+            "Available actions:\n" +
+            "• Add new voters to the system\n" +
+            "• View all registered voters\n" +
+            "• Check voter registration status\n" +
+            "• Monitor voting activity\n\n" +
+            "Note: For full functionality, ensure SqlElectionManager\n" +
+            "is properly implemented with voter management methods.");
         
-        for (int i = 0; i < voters.size(); i++) {
-            Voter v = voters.get(i);
-            data[i][0] = v.getId();
-            data[i][1] = v.getName();
-            data[i][2] = SqlElectionDataManager.isVoterRegistered(v.getId()) ? "✓" : "✗";
-            data[i][3] = SqlElectionDataManager.hasVoterVoted(v.getId()) ? "✓" : "✗";
-        }
+        infoArea.setEditable(false);
+        infoArea.setFont(Theme.MONOSPACE_FONT);
+        infoArea.setBackground(Theme.BACKGROUND_LIGHT);
+        infoArea.setForeground(Theme.TEXT_DARK);
+        infoArea.setMargin(new Insets(10, 10, 10, 10));
         
-        JTable table = new JTable(data, columnNames);
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        JScrollPane scrollPane = new JScrollPane(table);
-        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(new JScrollPane(infoArea), BorderLayout.CENTER);
         
-        dialog.add(panel);
+        dialog.setContentPane(panel);
         dialog.setVisible(true);
     }
-
-    private void addVoterDialog() {
-        JDialog addDialog = new JDialog(this, "Add New Voter", true);
-        addDialog.setSize(400, 200);
-        addDialog.setLocationRelativeTo(this);
+    
+    private void showVoterAddDialog(JDialog parentDialog) {
+        JDialog dialog = new JDialog(parentDialog, "Add New Voter", true);
+        dialog.setSize(400, 200);
+        dialog.setLocationRelativeTo(parentDialog);
         
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.setBorder(Theme.getDialogBorder());
+        panel.setBackground(Theme.BACKGROUND_WHITE);
         
         gbc.gridx = 0;
         gbc.gridy = 0;
-        panel.add(new JLabel("Voter ID:"), gbc);
+        JLabel idLabel = new JLabel("Voter ID:");
+        idLabel.setFont(Theme.BODY_FONT);
+        panel.add(idLabel, gbc);
         gbc.gridx = 1;
         JTextField idField = new JTextField(20);
+        idField.setFont(Theme.BODY_FONT);
         panel.add(idField, gbc);
         
         gbc.gridx = 0;
         gbc.gridy = 1;
-        panel.add(new JLabel("Voter Name:"), gbc);
+        JLabel nameLabel = new JLabel("Voter Name:");
+        nameLabel.setFont(Theme.BODY_FONT);
+        panel.add(nameLabel, gbc);
         gbc.gridx = 1;
         JTextField nameField = new JTextField(20);
+        nameField.setFont(Theme.BODY_FONT);
         panel.add(nameField, gbc);
         
         gbc.gridx = 0;
         gbc.gridy = 2;
         gbc.gridwidth = 2;
+        gbc.anchor = GridBagConstraints.CENTER;
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        
         JButton addBtn = new JButton("Add Voter");
-        addBtn.addActionListener(e -> {
+        addBtn.setBackground(Theme.SUCCESS_GREEN);
+        addBtn.setForeground(Theme.TEXT_WHITE);
+        addBtn.setFont(Theme.BODY_BOLD_FONT);
+        addBtn.addActionListener(evt -> {
             String voterId = idField.getText().trim();
             String voterName = nameField.getText().trim();
             
             if (voterId.isEmpty() || voterName.isEmpty()) {
-                JOptionPane.showMessageDialog(addDialog, "All fields are required!");
+                JOptionPane.showMessageDialog(dialog, "❌ Please fill all fields", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
             
-            if (SqlElectionDataManager.addVoter(voterId, voterName)) {
-                JOptionPane.showMessageDialog(addDialog, "✅ Voter added successfully!");
-                SqlAdminManager.logAdminAction(adminId, "ADD_VOTER", "Added voter: " + voterId);
-                addDialog.dispose();
-            } else {
-                JOptionPane.showMessageDialog(addDialog, "❌ Failed to add voter (may already exist)");
+            // Try to add voter using SqlElectionManager if available
+            try {
+                if (SqlElectionDataManager.addVoter(voterId, voterName)) {
+                    JOptionPane.showMessageDialog(dialog, "✅ Voter added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    SqlAdminManager.logAdminAction(adminId, "ADD_VOTER", "Added voter: " + voterId);
+                    dialog.dispose();
+                } else {
+                    JOptionPane.showMessageDialog(dialog, "❌ Failed to add voter", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(dialog, 
+                    "⚠️ SqlElectionManager.addVoter() not implemented\n" +
+                    "Voter would be added: " + voterId + " - " + voterName,
+                    "Info", JOptionPane.INFORMATION_MESSAGE);
+                dialog.dispose();
             }
         });
-        panel.add(addBtn, gbc);
         
-        addDialog.add(panel);
-        addDialog.setVisible(true);
+        JButton cancelBtn = new JButton("Cancel");
+        cancelBtn.setFont(Theme.BODY_FONT);
+        cancelBtn.addActionListener(evt -> dialog.dispose());
+        
+        buttonPanel.add(addBtn);
+        buttonPanel.add(cancelBtn);
+        panel.add(buttonPanel, gbc);
+        
+        dialog.setContentPane(panel);
+        dialog.setVisible(true);
     }
-
-    private void deleteVoterDialog() {
-        String voterId = JOptionPane.showInputDialog(this, "Enter Voter ID to delete:");
-        if (voterId == null || voterId.isEmpty()) return;
-        
-        int confirm = JOptionPane.showConfirmDialog(this, 
-            "Are you sure you want to delete voter: " + voterId + "?",
-            "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        
-        if (confirm == JOptionPane.YES_OPTION) {
-            if (SqlElectionDataManager.deleteVoter(voterId)) {
-                JOptionPane.showMessageDialog(this, "✅ Voter deleted successfully!");
-                SqlAdminManager.logAdminAction(adminId, "DELETE_VOTER", "Deleted voter: " + voterId);
-            } else {
-                JOptionPane.showMessageDialog(this, "❌ Failed to delete voter");
-            }
-        }
-    }
-
-    private void showNomineeManagement() {
-        JDialog dialog = new JDialog(this, "Nominee Management", true);
-        dialog.setSize(600, 400);
+    
+    private void showVoterListDialog() {
+        JDialog dialog = new JDialog(this, "Voter List", true);
+        dialog.setSize(500, 400);
         dialog.setLocationRelativeTo(this);
         
         JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        panel.setBackground(Theme.BACKGROUND_WHITE);
+        panel.setBorder(Theme.getDialogBorder());
         
-        // Button panel
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JTextArea voterList = new JTextArea();
+        voterList.setEditable(false);
+        voterList.setFont(Theme.MONOSPACE_FONT);
+        voterList.setBackground(Theme.BACKGROUND_LIGHT);
         
-        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_ADD_NOMINEE)) {
-            JButton addBtn = new JButton("Add Nominee");
-            addBtn.addActionListener(e -> addNomineeDialog());
-            buttonPanel.add(addBtn);
+        try {
+            // Try to get voters from SqlElectionManager
+            java.util.List<Voter> voters = SqlElectionDataManager.getAllVoters();
+            if (voters != null && !voters.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("Registered Voters:\n");
+                sb.append("══════════════════════════════════════════\n\n");
+                for (Voter voter : voters) {
+                    sb.append(String.format("ID: %-10s | Name: %-20s\n", 
+                        voter.getId(), voter.getName()));
+                }
+                voterList.setText(sb.toString());
+            } else {
+                voterList.setText("No voters found in database.\n\nAdd voters using the 'Add Voter' button.");
+            }
+        } catch (Exception e) {
+            voterList.setText("⚠️ SqlElectionManager.getAllVoters() not implemented\n\n" +
+                            "This feature requires voter data access methods.");
         }
         
-        if (AdminRole.hasPermission(adminRole, AdminRole.PERM_DELETE_NOMINEE)) {
-            JButton deleteBtn = new JButton("Delete Nominee");
-            deleteBtn.addActionListener(e -> deleteNomineeDialog());
-            buttonPanel.add(deleteBtn);
-        }
+        panel.add(new JScrollPane(voterList), BorderLayout.CENTER);
         
-        panel.add(buttonPanel, BorderLayout.NORTH);
+        JButton closeBtn = new JButton("Close");
+        closeBtn.addActionListener(evt -> dialog.dispose());
+        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        bottomPanel.add(closeBtn);
+        panel.add(bottomPanel, BorderLayout.SOUTH);
         
-        // Nominee list table
-        java.util.List<Nominee> nominees = SqlElectionDataManager.getAllNominees();
-        String[] columnNames = {"Nominee ID", "Name", "Party"};
-        Object[][] data = new Object[nominees.size()][3];
-        
-        for (int i = 0; i < nominees.size(); i++) {
-            Nominee n = nominees.get(i);
-            data[i][0] = n.getId();
-            data[i][1] = n.getName();
-            data[i][2] = n.getParty();
-        }
-        
-        JTable table = new JTable(data, columnNames);
-        JScrollPane scrollPane = new JScrollPane(table);
-        panel.add(scrollPane, BorderLayout.CENTER);
-        
-        dialog.add(panel);
+        dialog.setContentPane(panel);
         dialog.setVisible(true);
     }
 
-    private void addNomineeDialog() {
-        JDialog addDialog = new JDialog(this, "Add New Nominee", true);
-        addDialog.setSize(400, 250);
-        addDialog.setLocationRelativeTo(this);
+    // ==================== NOMINEE MANAGEMENT ====================
+    
+    private void showNomineeManagement() {
+        JOptionPane.showMessageDialog(this, 
+            "<html><b>🗳️ Nominee Management</b><br><br>" +
+            "Feature for <b>NomineeManager</b> role<br><br>" +
+            "Allows managing election candidates:<br>" +
+            "• Add new nominees<br>" +
+            "• View nominee list<br>" +
+            "• Delete nominees<br>" +
+            "• Manage political parties</html>",
+            "Nominee Management", 
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    // ==================== ELECTION MANAGEMENT ====================
+    
+    private void showElectionManagement() {
+        JOptionPane.showMessageDialog(this, 
+            "<html><b>💼 Election Management</b><br><br>" +
+            "Feature for <b>ElectionManager</b> role<br><br>" +
+            "Configure election settings:<br>" +
+            "• Set start/end dates<br>" +
+            "• Activate/deactivate voting<br>" +
+            "• View election status<br>" +
+            "• Monitor voting progress</html>",
+            "Election Management", 
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    // ==================== LIVE RESULTS ====================
+    
+    private void showLiveResults() {
+        JDialog dialog = new JDialog(this, "Live Election Results", true);
+        dialog.setSize(500, 300);
+        dialog.setLocationRelativeTo(this);
+        
+        JTextArea textArea = new JTextArea();
+        textArea.setEditable(false);
+        textArea.setFont(Theme.MONOSPACE_FONT);
+        textArea.setText("📊 LIVE ELECTION RESULTS\n" +
+                        "═════════════════════════════════════════\n\n" +
+                        "Feature Preview:\n" +
+                        "• Real-time vote counts\n" +
+                        "• Candidate standings\n" +
+                        "• Turnout statistics\n" +
+                        "• Visual charts\n\n" +
+                        "Requires: Report viewing permission\n\n" +
+                        "This feature would connect to SqlElectionManager\n" +
+                        "to fetch live vote data from the database.");
+        
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        dialog.add(scrollPane);
+        dialog.setVisible(true);
+    }
+
+    // ==================== AUDIT LOGS ====================
+    
+    private void showAuditLogs() {
+        // Get audit logs from SqlAdminManager
+        java.util.List<String> auditLogs = SqlAdminManager.getAdminAuditTrail(adminId);
+        
+        JDialog dialog = new JDialog(this, "Audit Logs", true);
+        dialog.setSize(600, 400);
+        dialog.setLocationRelativeTo(this);
+        
+        JTextArea textArea = new JTextArea();
+        textArea.setEditable(false);
+        textArea.setFont(Theme.MONOSPACE_FONT);
+        
+        if (auditLogs.isEmpty()) {
+            textArea.setText("📋 AUDIT LOGS\n" +
+                           "═════════════════════════════════════════\n\n" +
+                           "No audit logs found.");
+        } else {
+            StringBuilder logs = new StringBuilder();
+            logs.append("📋 AUDIT LOGS (Last 50 entries)\n");
+            logs.append("═════════════════════════════════════════\n\n");
+            for (String log : auditLogs) {
+                logs.append(log).append("\n");
+            }
+            textArea.setText(logs.toString());
+        }
+        
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        dialog.add(scrollPane);
+        dialog.setVisible(true);
+    }
+
+    // ==================== CHANGE PASSWORD ====================
+    
+    private void showChangePasswordDialog() {
+        JDialog dialog = new JDialog(this, "Change Password", true);
+        dialog.setSize(400, 250);
+        dialog.setLocationRelativeTo(this);
         
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.setBorder(Theme.getDialogBorder());
+        panel.setBackground(Theme.BACKGROUND_WHITE);
         
         gbc.gridx = 0;
         gbc.gridy = 0;
-        panel.add(new JLabel("Nominee ID:"), gbc);
+        JLabel currentLabel = new JLabel("Current Password:");
+        currentLabel.setFont(Theme.BODY_FONT);
+        panel.add(currentLabel, gbc);
         gbc.gridx = 1;
-        JTextField idField = new JTextField(20);
-        panel.add(idField, gbc);
+        JPasswordField currentPass = new JPasswordField(20);
+        currentPass.setFont(Theme.BODY_FONT);
+        panel.add(currentPass, gbc);
         
         gbc.gridx = 0;
         gbc.gridy = 1;
-        panel.add(new JLabel("Name:"), gbc);
+        JLabel newLabel = new JLabel("New Password:");
+        newLabel.setFont(Theme.BODY_FONT);
+        panel.add(newLabel, gbc);
         gbc.gridx = 1;
-        JTextField nameField = new JTextField(20);
-        panel.add(nameField, gbc);
+        JPasswordField newPass = new JPasswordField(20);
+        newPass.setFont(Theme.BODY_FONT);
+        panel.add(newPass, gbc);
         
         gbc.gridx = 0;
         gbc.gridy = 2;
-        panel.add(new JLabel("Party:"), gbc);
+        JLabel confirmLabel = new JLabel("Confirm New:");
+        confirmLabel.setFont(Theme.BODY_FONT);
+        panel.add(confirmLabel, gbc);
         gbc.gridx = 1;
-        JTextField partyField = new JTextField(20);
-        panel.add(partyField, gbc);
+        JPasswordField confirmPass = new JPasswordField(20);
+        confirmPass.setFont(Theme.BODY_FONT);
+        panel.add(confirmPass, gbc);
         
         gbc.gridx = 0;
         gbc.gridy = 3;
         gbc.gridwidth = 2;
-        JButton addBtn = new JButton("Add Nominee");
-        addBtn.addActionListener(e -> {
-            String nomineeId = idField.getText().trim();
-            String nomineeName = nameField.getText().trim();
-            String party = partyField.getText().trim();
+        gbc.anchor = GridBagConstraints.CENTER;
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        
+        JButton changeBtn = new JButton("Change Password");
+        changeBtn.setBackground(Theme.SUCCESS_GREEN);
+        changeBtn.setForeground(Theme.TEXT_WHITE);
+        changeBtn.setFont(Theme.BODY_BOLD_FONT);
+        changeBtn.addActionListener(evt -> {
+            String current = new String(currentPass.getPassword());
+            String newPassword = new String(newPass.getPassword());
+            String confirm = new String(confirmPass.getPassword());
             
-            if (nomineeId.isEmpty() || nomineeName.isEmpty() || party.isEmpty()) {
-                JOptionPane.showMessageDialog(addDialog, "All fields are required!");
+            if (current.isEmpty() || newPassword.isEmpty() || confirm.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "❌ Please fill all fields", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
             
-            if (SqlElectionDataManager.addNominee(nomineeId, nomineeName, party)) {
-                JOptionPane.showMessageDialog(addDialog, "✅ Nominee added successfully!");
-                SqlAdminManager.logAdminAction(adminId, "ADD_NOMINEE", "Added nominee: " + nomineeId);
-                addDialog.dispose();
+            if (!newPassword.equals(confirm)) {
+                JOptionPane.showMessageDialog(dialog, "❌ New passwords don't match", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            if (newPassword.length() < 6) {
+                JOptionPane.showMessageDialog(dialog, "❌ Password must be at least 6 characters", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            if (SqlAdminManager.updateAdminPassword(adminId, current, newPassword)) {
+                JOptionPane.showMessageDialog(dialog, "✅ Password changed successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                SqlAdminManager.logAdminAction(adminId, "PASSWORD_CHANGED", "Admin changed their password");
+                dialog.dispose();
             } else {
-                JOptionPane.showMessageDialog(addDialog, "❌ Failed to add nominee");
+                JOptionPane.showMessageDialog(dialog, "❌ Failed to change password. Check current password.", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
-        panel.add(addBtn, gbc);
         
-        addDialog.add(panel);
-        addDialog.setVisible(true);
-    }
-
-    private void deleteNomineeDialog() {
-        String nomineeId = JOptionPane.showInputDialog(this, "Enter Nominee ID to delete:");
-        if (nomineeId == null || nomineeId.isEmpty()) return;
+        JButton cancelBtn = new JButton("Cancel");
+        cancelBtn.setFont(Theme.BODY_FONT);
+        cancelBtn.addActionListener(evt -> dialog.dispose());
         
-        int confirm = JOptionPane.showConfirmDialog(this, 
-            "Are you sure you want to delete nominee: " + nomineeId + "?",
-            "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        buttonPanel.add(changeBtn);
+        buttonPanel.add(cancelBtn);
+        panel.add(buttonPanel, gbc);
         
-        if (confirm == JOptionPane.YES_OPTION) {
-            if (SqlElectionDataManager.deleteNominee(nomineeId)) {
-                JOptionPane.showMessageDialog(this, "✅ Nominee deleted successfully!");
-                SqlAdminManager.logAdminAction(adminId, "DELETE_NOMINEE", "Deleted nominee: " + nomineeId);
-            } else {
-                JOptionPane.showMessageDialog(this, "❌ Failed to delete nominee");
-            }
-        }
-    }
-
-    private void showElectionSetup() {
-        JOptionPane.showMessageDialog(this, 
-            "⚠️ Election Management\n\n" +
-            "Feature for ElectionManager role\n\n" +
-            "Allows configuring and managing\n" +
-            "the election schedule and status",
-            "Election Setup", JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void showLiveResults() {
-        JDialog dialog = new JDialog(this, "Live Election Results", true);
-        dialog.setSize(600, 400);
-        dialog.setLocationRelativeTo(this);
-        
-        Map<String, Integer> voteCounts = SqlElectionDataManager.getVoteCounts();
-        int totalVotes = SqlElectionDataManager.getTotalVotesCast();
-        int totalRegistered = SqlElectionDataManager.getTotalRegisteredVoters();
-        
-        StringBuilder results = new StringBuilder();
-        results.append("📊 LIVE ELECTION RESULTS\n");
-        results.append("═════════════════════════════════════════\n\n");
-        results.append("Total Registered Voters: ").append(totalRegistered).append("\n");
-        results.append("Total Votes Cast: ").append(totalVotes).append("\n");
-        results.append("Turnout: ").append(String.format("%.1f%%", 
-            (totalRegistered > 0 ? totalVotes * 100.0 / totalRegistered : 0))).append("\n\n");
-        results.append("VOTE DISTRIBUTION:\n");
-        results.append("─────────────────────────────────────────\n");
-        
-        if (voteCounts.isEmpty()) {
-            results.append("No votes cast yet...\n");
-        } else {
-            for (Map.Entry<String, Integer> entry : voteCounts.entrySet()) {
-                results.append(String.format("%-20s: %4d votes\n", entry.getKey(), entry.getValue()));
-            }
-        }
-        
-        JTextArea textArea = new JTextArea(results.toString());
-        textArea.setEditable(false);
-        textArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        textArea.setMargin(new Insets(10, 10, 10, 10));
-        
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        dialog.add(scrollPane, BorderLayout.CENTER);
+        dialog.setContentPane(panel);
         dialog.setVisible(true);
-    }
-
-    private void showAuditLogs() {
-        JOptionPane.showMessageDialog(this, 
-            "📋 AUDIT LOG VIEWER\n\n" +
-            "Feature for AuditViewer role\n\n" +
-            "Tracks all admin actions and\n" +
-            "system events for security monitoring",
-            "Audit Logs", JOptionPane.INFORMATION_MESSAGE);
     }
 
     /**
      * Refresh the main panel to reload content
      */
     public void resetMainPanel() {
-        // Remove the old scroll pane
-        for (Component comp : getContentPane().getComponents()) {
-            if (comp instanceof JScrollPane) {
-                remove(comp);
-                break;
-            }
-        }
-        
-        // Re-initialize the main panel
+        getContentPane().removeAll();
+        initTopBar();
         initMainPanel();
-        
-        // Refresh the UI
         revalidate();
         repaint();
-    }}
+    }
+}

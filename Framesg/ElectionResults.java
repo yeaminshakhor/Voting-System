@@ -14,6 +14,7 @@ import javax.swing.ListSelectionModel;
  * GUI interface to display election results following AdminDashboard design patterns
  */
 public class ElectionResults extends JFrame implements ActionListener {
+    private static final long serialVersionUID = 1L;
     private final Color BACKGROUND_COLOR = Color.WHITE;
     private final Color DARK_BLUE = Color.decode("#1E40AF");
     private final Color PRIMARY_BLUE = Color.decode("#2563EB");

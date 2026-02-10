@@ -2,7 +2,6 @@ package Data;
 
 import java.io.*;
 import java.net.*;
-import java.util.*;
 import javax.net.ssl.HttpsURLConnection;
 
 /**
@@ -17,7 +16,6 @@ import javax.net.ssl.HttpsURLConnection;
 public class PortalIntegration {
     
     private static final String CONFIG_FILE = "portal_config.txt";
-    private static final long CACHE_DURATION = 3600000; // 1 hour cache
     private static final int TIMEOUT = 10000; // 10 seconds timeout
     
     /**

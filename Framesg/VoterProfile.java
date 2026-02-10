@@ -1,6 +1,7 @@
 package Framesg;
 
 import Data.ElectionData;
+import Data.SqlElectionDataManager;
 import Data.ElectionScheduler;
 import Utils.SecurityUtils;
 import Utils.Theme;
@@ -8,10 +9,11 @@ import javax.swing.*;
 import javax.swing.border.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.io.BufferedReader;
-import java.io.FileReader;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import javax.imageio.ImageIO;
 
 /**
  * Enhanced Voter Profile Management
@@ -21,13 +23,18 @@ import java.util.Date;
  * - Profile statistics
  */
 public class VoterProfile extends JFrame {
+    private static final long serialVersionUID = 1L;
     private String voterId;
     private String voterName;
+    private String voterEmail;
+    private String imagePath;
     private String registrationStatus;
     private boolean hasVoted;
     
     // UI Components
     private JLabel nameLabel;
+    private JLabel emailLabel;
+    private JLabel imageLabel;
     private JLabel electionStatusLabel;
     
     public VoterProfile(String voterId) {
@@ -55,33 +62,24 @@ public class VoterProfile extends JFrame {
     }
     
     private void loadVoterData() {
-        try (BufferedReader reader = new BufferedReader(new FileReader("database_voters.txt"))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(":", -1);  // Use -1 to include empty parts
-                if (parts.length >= 3 && parts[0].equals(voterId)) {
-                    voterName = parts.length > 1 ? parts[1] : "Unknown";
-                    registrationStatus = (parts.length > 2 && !parts[2].isEmpty() && !parts[2].equals("null")) ? "Registered" : "Unregistered";
-                    break;
-                }
-            }
-        } catch (Exception e) {
-            voterName = "Unknown";
-            registrationStatus = "Unknown";
-        }
+        // Load voter data from SQL database instead of plain text files
+        String voterInfo = SqlElectionDataManager.getVoterInfo(voterId);
         
-        hasVoted = ElectionData.hasVoted(voterId);
-    }
-    
-    /**
-     * Get extended voter information from database (blood group, DOB, photo, etc)
-     */
-    private String[] getExtendedVoterInfo() {
-        String info = ElectionData.getExtendedVoterInfo(voterId);
-        if (info != null) {
-            return info.split(":", -1);
+        if (voterInfo != null) {
+            // Format: voterId:name:email:imagePath:isRegistered:hasVoted
+            String[] parts = voterInfo.split(":", -1);
+            voterName = parts.length > 1 ? parts[1] : "Unknown";
+            voterEmail = parts.length > 2 ? parts[2] : "";
+            imagePath = parts.length > 3 ? parts[3] : null;
+            registrationStatus = parts.length > 4 && "1".equals(parts[4]) ? "Registered" : "Unregistered";
+            hasVoted = parts.length > 5 && "1".equals(parts[5]);
+        } else {
+            voterName = "Unknown";
+            voterEmail = "";
+            imagePath = null;
+            registrationStatus = "Unknown";
+            hasVoted = false;
         }
-        return null;
     }
     
     private void initUI() {
@@ -148,17 +146,41 @@ public class VoterProfile extends JFrame {
         gbc.insets = new Insets(8, 8, 8, 8);
         gbc.gridx = 0;
         
-        // Get extended voter information
-        String[] voterInfo = getExtendedVoterInfo();
+        // Section 0: Profile Image
+        gbc.gridy = 0;
+        if (imagePath != null && !imagePath.isEmpty()) {
+            try {
+                File imageFile = new File(imagePath);
+                if (imageFile.exists()) {
+                    BufferedImage img = ImageIO.read(imageFile);
+                    if (img != null) {
+                        // Scale image to 150x150
+                        BufferedImage scaledImg = new BufferedImage(150, 150, BufferedImage.TYPE_INT_RGB);
+                        Graphics2D g2d = scaledImg.createGraphics();
+                        g2d.drawImage(img, 0, 0, 150, 150, null);
+                        g2d.dispose();
+                        
+                        imageLabel = new JLabel(new ImageIcon(scaledImg));
+                        JPanel imagePanel = new JPanel();
+                        imagePanel.setBackground(Theme.BACKGROUND_WHITE);
+                        imagePanel.add(imageLabel);
+                        content.add(imagePanel, gbc);
+                        gbc.gridy++;
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("⚠️ Could not load voter image: " + e.getMessage());
+            }
+        }
         
         // Section 1: Personal Information
-        gbc.gridy = 0;
+        gbc.gridy++;
         content.add(createSectionTitle("Personal Information"), gbc);
         
-        gbc.gridy = 1;
+        gbc.gridy++;
         content.add(createInfoRow("Voter ID:", voterId), gbc);
         
-        gbc.gridy = 2;
+        gbc.gridy++;
         nameLabel = createInfoValue(voterName);
         JPanel nameRow = new JPanel(new BorderLayout(10, 0));
         nameRow.setBackground(Theme.BACKGROUND_WHITE);
@@ -166,29 +188,14 @@ public class VoterProfile extends JFrame {
         nameRow.add(nameLabel, BorderLayout.CENTER);
         content.add(nameRow, gbc);
         
-        // Date of Birth (from extended info)
-        if (voterInfo != null && voterInfo.length > 1 && !voterInfo[1].isEmpty()) {
-            gbc.gridy++;
-            content.add(createInfoRow("Date of Birth:", voterInfo[1]), gbc);
-        }
-        
-        // Blood Group (from extended info)
-        if (voterInfo != null && voterInfo.length > 2 && !voterInfo[2].isEmpty()) {
-            gbc.gridy++;
-            content.add(createInfoRow("Blood Group:", voterInfo[2]), gbc);
-        }
-        
-        // Department (from extended info)
-        if (voterInfo != null && voterInfo.length > 3 && !voterInfo[3].isEmpty()) {
-            gbc.gridy++;
-            content.add(createInfoRow("Department:", voterInfo[3]), gbc);
-        }
-        
-        // Email (from extended info)
-        if (voterInfo != null && voterInfo.length > 4 && !voterInfo[4].isEmpty()) {
-            gbc.gridy++;
-            content.add(createInfoRow("Email:", voterInfo[4]), gbc);
-        }
+        // Email (from SQL database)
+        gbc.gridy++;
+        emailLabel = createInfoValue(voterEmail != null && !voterEmail.isEmpty() ? voterEmail : "Not provided");
+        JPanel emailRow = new JPanel(new BorderLayout(10, 0));
+        emailRow.setBackground(Theme.BACKGROUND_WHITE);
+        emailRow.add(createInfoLabel("Email:"), BorderLayout.WEST);
+        emailRow.add(emailLabel, BorderLayout.CENTER);
+        content.add(emailRow, gbc);
         
         // Registration Status
         gbc.gridy++;
@@ -558,21 +565,68 @@ public class VoterProfile extends JFrame {
     }
     
     private void updateProfile() {
-        // Show dialog to update profile information
+        // Create a panel for profile update with image upload option
+        JPanel updatePanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(8, 8, 8, 8);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        
+        // Name field
+        JLabel nameLabel1 = new JLabel("Full Name:");
         JTextField nameField = new JTextField(voterName, 20);
-        JTextField emailField = new JTextField(20);
+        updatePanel.add(nameLabel1, gbc);
+        gbc.gridx = 1;
+        updatePanel.add(nameField, gbc);
         
-        Object[] fields = {
-            "Full Name:", nameField,
-            "Email (optional):", emailField
-        };
+        // Email field
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        JLabel emailLabel1 = new JLabel("Email:");
+        JTextField emailField = new JTextField(voterEmail != null ? voterEmail : "", 20);
+        updatePanel.add(emailLabel1, gbc);
+        gbc.gridx = 1;
+        updatePanel.add(emailField, gbc);
         
-        int result = JOptionPane.showConfirmDialog(this, fields, 
+        // Image upload button
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        JButton imageBtn = new JButton("Upload Image");
+        final File[] selectedImage = {null};
+        imageBtn.addActionListener(e -> {
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "Image Files", "jpg", "jpeg", "png", "gif"));
+            
+            if (fileChooser.showOpenDialog(VoterProfile.this) == JFileChooser.APPROVE_OPTION) {
+                selectedImage[0] = fileChooser.getSelectedFile();
+                imageBtn.setText("✓ Image Selected: " + selectedImage[0].getName());
+                imageBtn.setBackground(Theme.SUCCESS_GREEN);
+                imageBtn.setForeground(Color.WHITE);
+            }
+        });
+        updatePanel.add(imageBtn, gbc);
+        
+        // Current image preview
+        gbc.gridx = 1;
+        if (imagePath != null && !imagePath.isEmpty()) {
+            JLabel currentImageLabel = new JLabel("Current: " + imagePath);
+            currentImageLabel.setFont(Theme.SMALL_FONT);
+            updatePanel.add(currentImageLabel, gbc);
+        } else {
+            JLabel noImageLabel = new JLabel("No image set yet");
+            noImageLabel.setFont(Theme.SMALL_FONT);
+            updatePanel.add(noImageLabel, gbc);
+        }
+        
+        int result = JOptionPane.showConfirmDialog(this, updatePanel, 
             "Update Profile", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         
         if (result == JOptionPane.OK_OPTION) {
             String newName = nameField.getText().trim();
-            String email = emailField.getText().trim();
+            String newEmail = emailField.getText().trim();
+            String newImagePath = imagePath;  // Keep existing image if no new one selected
             
             if (newName.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Name cannot be empty!", 
@@ -580,14 +634,32 @@ public class VoterProfile extends JFrame {
                 return;
             }
             
-            // Update voter information in database
-            if (ElectionData.updateVoterInfo(voterId, newName, email)) {
+            // If new image selected, set it as the image path
+            if (selectedImage[0] != null) {
+                newImagePath = selectedImage[0].getAbsolutePath();
+            }
+            
+            // Update voter information in SQL database
+            if (SqlElectionDataManager.updateVoterProfile(voterId, newName, newEmail, newImagePath)) {
                 voterName = newName;
+                voterEmail = newEmail;
+                imagePath = newImagePath;
+                
                 if (nameLabel != null) {
                     nameLabel.setText(voterName);
                 }
+                if (emailLabel != null) {
+                    emailLabel.setText(!voterEmail.isEmpty() ? voterEmail : "Not provided");
+                }
+                
                 JOptionPane.showMessageDialog(this, "Profile updated successfully!", 
                     "Success", JOptionPane.INFORMATION_MESSAGE);
+                
+                // Refresh the display
+                getContentPane().removeAll();
+                initUI();
+                revalidate();
+                repaint();
             } else {
                 JOptionPane.showMessageDialog(this, "Failed to update profile!", 
                     "Error", JOptionPane.ERROR_MESSAGE);

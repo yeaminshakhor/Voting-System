@@ -10,6 +10,7 @@ import javax.swing.*;
  * Expects format: id:name:age:password
  */
 public class VoterListPanel extends JPanel {
+    private static final long serialVersionUID = 1L;
     private static final String VOTERS_FILE = "data_voters.txt";
 
     public VoterListPanel() {

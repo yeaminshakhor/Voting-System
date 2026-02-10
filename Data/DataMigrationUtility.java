@@ -365,8 +365,8 @@ public class DataMigrationUtility {
      * Check if migration is needed
      */
     public static boolean isMigrationNeeded() {
-        File adminFile = new File(ADMIN_FILE);
-        return adminFile.exists();
+        // Always return false - system is SQL-only now
+        return false;
     }
     
     /**

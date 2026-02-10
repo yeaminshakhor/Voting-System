@@ -10,69 +10,99 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 public class AdminData {
     public static final String ADMIN_FILE = "database_admins.txt";
     public static final String ADMIN_SALT_FILE = "database_admin_salts.txt";
-    public static final int MAX_ENTRIES = 1000; // Added missing constant
+    public static final int MAX_ENTRIES = 1000;
     
     /**
-     * VALIDATE ADMIN - With backward compatibility
+     * VALIDATE ADMIN - Updated to handle pre-hashed passwords in text file
+     * Format: adminId:Name:PasswordHash:Role
      */
     public static boolean validateAdminCredentials(String adminId, String password) {
-        System.out.println("🔐 Validating admin: " + adminId);
+        System.out.println("🔐 [AdminData] Validating admin: " + adminId);
         
         // Validate inputs
         if (adminId == null || adminId.trim().isEmpty() || password == null) {
-            System.out.println("❌ Invalid input parameters");
+            System.out.println("❌ [AdminData] Invalid input parameters");
             return false;
         }
         
         File adminFile = new File(ADMIN_FILE);
         if (!adminFile.exists()) {
-            System.out.println("❌ Admin file does not exist: " + ADMIN_FILE);
+            System.out.println("❌ [AdminData] Admin file does not exist: " + ADMIN_FILE);
             return false;
         }
         
         try (BufferedReader reader = new BufferedReader(new FileReader(ADMIN_FILE))) {
             String line;
             while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                
+                // Parse: adminId:Name:PasswordHash:Role
                 String[] parts = line.split(":");
                 if (parts.length >= 4 && parts[0].equals(adminId)) {
-                    String storedPassword = parts[2];
-                    System.out.println("✓ Admin found in database");
+                    String storedHash = parts[2]; // This is already a Base64 hash from old system
+                    String storedRole = parts[3];
                     
-                    // Try plaintext first (for very old data)
-                    if (storedPassword.equals(password)) {
-                        System.out.println("✅ Login successful (plaintext match)");
-                        migrateAdminToHashedPassword(adminId, password);
-                        return true;
-                    }
+                    System.out.println("✅ [AdminData] Admin found: " + adminId + " | Role: " + storedRole);
+                    System.out.println("🔐 [AdminData] Stored hash (Base64): " + storedHash.substring(0, Math.min(20, storedHash.length())) + "...");
                     
-                    // Try OLD hashing algorithm first (backward compatibility)
-                    String salt = getAdminSalt(adminId);
-                    if (salt != null && !salt.isEmpty()) {
-                        String hashedInputOld = SecurityUtils.hashPasswordOld(password, salt);
-                        if (hashedInputOld != null && storedPassword.equals(hashedInputOld)) {
-                            System.out.println("✅ Login successful (old hashing match)");
+                    // Check if this is a legacy Base64 hash (like in your file)
+                    if (isBase64(storedHash)) {
+                        System.out.println("⚠️ [AdminData] Detected Base64 hash - using legacy validation");
+                        
+                        // Get the salt for this admin
+                        String salt = getAdminSalt(adminId);
+                        System.out.println("🔐 [AdminData] Retrieved salt: " + (salt != null && !salt.isEmpty() ? "Yes" : "No"));
+                        
+                        if (salt != null && !salt.isEmpty()) {
+                            // Try to validate with current hashing algorithm
+                            String inputHash = SecurityUtils.hashPassword(password, salt);
+                            
+                            if (inputHash != null) {
+                                System.out.println("🔐 [AdminData] Input hash generated");
+                                System.out.println("🔐 [AdminData] Comparing: " + (inputHash.equals(storedHash) ? "MATCH" : "NO MATCH"));
+                                
+                                if (inputHash.equals(storedHash)) {
+                                    System.out.println("✅ [AdminData] Login successful (hash match)");
+                                    return true;
+                                }
+                            }
+                        }
+                        
+                        // If we reach here, hash didn't match
+                        System.out.println("❌ [AdminData] Password mismatch or salt issue");
+                        
+                        // Last resort: check if password matches the hash directly (for debugging)
+                        // This should normally not be true since storedHash is hashed
+                        if (storedHash.equals(password)) {
+                            System.out.println("⚠️ [AdminData] Direct password match (debug mode)");
                             return true;
                         }
                         
-                        // Try NEW hashing algorithm
-                        String hashedInputNew = SecurityUtils.hashPassword(password, salt);
-                        if (hashedInputNew != null && storedPassword.equals(hashedInputNew)) {
-                            System.out.println("✅ Login successful (new hashing match)");
+                        return false;
+                    } else {
+                        // This is plain text password (old system)
+                        System.out.println("⚠️ [AdminData] Plain text password detected");
+                        if (storedHash.equals(password)) {
+                            System.out.println("✅ [AdminData] Login successful (plaintext match)");
+                            // Migrate to hashed password
+                            migrateAdminToHashedPassword(adminId, password);
                             return true;
                         }
+                        return false;
                     }
-                    
-                    System.out.println("❌ Password mismatch");
-                    return false;
                 }
             }
-            System.out.println("❌ Admin ID not found in database: " + adminId);
+            System.out.println("❌ [AdminData] Admin ID not found in database: " + adminId);
         } catch (IOException e) {
-            System.out.println("❌ File error: " + e.getMessage());
+            System.out.println("❌ [AdminData] File error: " + e.getMessage());
             e.printStackTrace();
         }
         
@@ -80,14 +110,56 @@ public class AdminData {
     }
     
     /**
+     * Check if string is valid Base64
+     */
+    private static boolean isBase64(String str) {
+        if (str == null || str.isEmpty()) return false;
+        
+        // Base64 strings are usually longer and contain specific characters
+        String base64Pattern = "^[A-Za-z0-9+/]+[=]{0,2}$";
+        return str.matches(base64Pattern) && str.length() >= 20;
+    }
+    
+    /**
+     * Get admin salt from salt file (public for migration purposes)
+     */
+    public static String getAdminSalt(String adminId) {
+        File saltFile = new File(ADMIN_SALT_FILE);
+        if (!saltFile.exists()) {
+            System.out.println("⚠️ [AdminData] Salt file does not exist: " + ADMIN_SALT_FILE);
+            return "";
+        }
+        
+        try (BufferedReader reader = new BufferedReader(new FileReader(ADMIN_SALT_FILE))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                
+                String[] parts = line.split(":");
+                if (parts.length >= 2 && parts[0].equals(adminId)) {
+                    return parts[1];
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("❌ [AdminData] Error reading salt file: " + e.getMessage());
+        }
+        
+        System.out.println("⚠️ [AdminData] No salt found for admin: " + adminId);
+        return "";
+    }
+    
+    /**
      * Auto-migrate plaintext password to hashed
      */
     private static void migrateAdminToHashedPassword(String adminId, String plainPassword) {
+        System.out.println("🔄 [AdminData] Migrating admin to hashed password: " + adminId);
+        
         String salt = SecurityUtils.generateSalt();
         String hashedPassword = SecurityUtils.hashPassword(plainPassword, salt);
         
         if (hashedPassword == null) {
-            System.out.println("❌ Failed to hash password for migration");
+            System.out.println("❌ [AdminData] Failed to hash password for migration");
             return;
         }
         
@@ -96,67 +168,44 @@ public class AdminData {
             String line;
             while ((line = reader.readLine()) != null) {
                 String[] parts = line.split(":");
-                if (parts.length == 4 && parts[0].equals(adminId)) {
+                if (parts.length >= 4 && parts[0].equals(adminId)) {
+                    // Replace plain text password with hash
                     lines.add(parts[0] + ":" + parts[1] + ":" + hashedPassword + ":" + parts[3]);
+                    System.out.println("✅ [AdminData] Updated password for: " + adminId);
                 } else {
                     lines.add(line);
                 }
             }
         } catch (IOException e) {
-            System.out.println("❌ Error reading admin file for migration: " + e.getMessage());
+            System.out.println("❌ [AdminData] Error reading admin file for migration: " + e.getMessage());
             return;
         }
         
-        // Write back
+        // Write back updated file
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(ADMIN_FILE))) {
             for (String line : lines) {
                 writer.write(line);
                 writer.newLine();
             }
         } catch (IOException e) {
-            System.out.println("❌ Error writing admin file during migration: " + e.getMessage());
+            System.out.println("❌ [AdminData] Error writing admin file during migration: " + e.getMessage());
             return;
         }
         
-        // Save salt
+        // Save salt to salt file
         try (BufferedWriter saltWriter = new BufferedWriter(new FileWriter(ADMIN_SALT_FILE, true))) {
             saltWriter.write(adminId + ":" + salt);
             saltWriter.newLine();
-            System.out.println("✅ Auto-migrated admin " + adminId + " to hashed password");
+            System.out.println("✅ [AdminData] Auto-migrated admin " + adminId + " to hashed password");
         } catch (IOException e) {
-            System.out.println("⚠️ Admin migrated but failed to save salt: " + e.getMessage());
+            System.out.println("⚠️ [AdminData] Admin migrated but failed to save salt: " + e.getMessage());
         }
     }
     
     /**
-     * Gets the admin's salt from salt file.
-     * Returns empty string if salt file doesn't exist (for backward compatibility).
+     * Checks if admin exists in the database
      */
-    private static String getAdminSalt(String adminId) {
-        File saltFile = new File(ADMIN_SALT_FILE);
-        if (!saltFile.exists()) {
-            return "";
-        }
-        
-        try (BufferedReader reader = new BufferedReader(new FileReader(ADMIN_SALT_FILE))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(":");
-                if (parts.length >= 2 && parts[0].equals(adminId)) {
-                    return parts[1];
-                }
-            }
-        } catch (IOException e) {
-            System.out.println("❌ Salt file error: " + e.getMessage());
-        }
-        
-        return "";
-    }
-
-    /**
-     * Checks if admin exists in the database.
-     */
-    private static boolean adminExists(String adminId) {
+    public static boolean adminExists(String adminId) {
         if (adminId == null || adminId.trim().isEmpty()) {
             return false;
         }
@@ -169,76 +218,86 @@ public class AdminData {
         try (BufferedReader reader = new BufferedReader(new FileReader(ADMIN_FILE))) {
             String line;
             while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                
                 String[] parts = line.split(":");
                 if (parts.length >= 1 && parts[0].equals(adminId)) {
                     return true;
                 }
             }
         } catch (IOException e) {
-            System.out.println("❌ Error checking admin existence: " + e.getMessage());
+            System.out.println("❌ [AdminData] Error checking admin existence: " + e.getMessage());
         }
         return false;
     }
 
     /**
-     * Gets the admin's name by ID.
+     * Gets the admin's name by ID
      */
     public static String getAdminNameById(String adminId) {
         if (adminId == null || adminId.trim().isEmpty()) {
             return null;
         }
         
-        System.out.println("👤 Looking for name of: " + adminId);
+        System.out.println("👤 [AdminData] Looking for name of: " + adminId);
 
         try (BufferedReader reader = new BufferedReader(new FileReader(ADMIN_FILE))) {
             String line;
             while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                
                 String[] parts = line.split(":");
                 if (parts.length >= 4 && parts[0].equals(adminId)) {
-                    System.out.println("✅ Found name: " + parts[1]);
+                    System.out.println("✅ [AdminData] Found name: " + parts[1]);
                     return parts[1];
                 }
             }
         } catch (IOException e) {
-            System.out.println("❌ File error: " + e.getMessage());
+            System.out.println("❌ [AdminData] File error: " + e.getMessage());
         }
-        System.out.println("❌ Name not found for: " + adminId);
+        System.out.println("❌ [AdminData] Name not found for: " + adminId);
         return null;
     }
 
     /**
-     * Gets the admin's role by ID.
+     * Gets the admin's role by ID
      */
     public static String getRoleById(String adminId) {
         if (adminId == null || adminId.trim().isEmpty()) {
             return null;
         }
         
-        System.out.println("🎭 Looking for role of: " + adminId);
+        System.out.println("🎭 [AdminData] Looking for role of: " + adminId);
 
         try (BufferedReader reader = new BufferedReader(new FileReader(ADMIN_FILE))) {
             String line;
             while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                
                 String[] parts = line.split(":");
                 if (parts.length >= 4 && parts[0].equals(adminId)) {
-                    System.out.println("✅ Found role: " + parts[3]);
-                    return parts[3];
+                    String role = parts[3];
+                    System.out.println("✅ [AdminData] Found role: " + role);
+                    return role;
                 }
             }
         } catch (IOException e) {
-            System.out.println("❌ File error: " + e.getMessage());
+            System.out.println("❌ [AdminData] File error: " + e.getMessage());
         }
-        System.out.println("❌ Role not found for: " + adminId);
+        System.out.println("❌ [AdminData] Role not found for: " + adminId);
         return null;
     }
 
     /**
-     * Saves a new admin to the file with password hashing.
+     * Saves a new admin to the file with password hashing
      */
     public static boolean saveAdminToFile(Admin admin, String plainPassword) {
         // Validate inputs
         if (admin == null || plainPassword == null) {
-            System.out.println("❌ Admin or password is null");
+            System.out.println("❌ [AdminData] Admin or password is null");
             return false;
         }
         
@@ -246,23 +305,23 @@ public class AdminData {
         String adminName = admin.getName();
         
         if (!SecurityUtils.isValidId(adminId)) {
-            System.out.println("❌ Invalid admin ID format: " + adminId);
+            System.out.println("❌ [AdminData] Invalid admin ID format: " + adminId);
             return false;
         }
         
         if (!SecurityUtils.isValidName(adminName)) {
-            System.out.println("❌ Invalid admin name: " + adminName);
+            System.out.println("❌ [AdminData] Invalid admin name: " + adminName);
             return false;
         }
         
         if (plainPassword.length() < 6) {
-            System.out.println("❌ Password must be at least 6 characters");
+            System.out.println("❌ [AdminData] Password must be at least 6 characters");
             return false;
         }
         
         // Check if admin already exists
         if (adminExists(adminId)) {
-            System.out.println("❌ Admin ID already exists: " + adminId);
+            System.out.println("❌ [AdminData] Admin ID already exists: " + adminId);
             return false;
         }
 
@@ -271,7 +330,7 @@ public class AdminData {
         String hashedPassword = SecurityUtils.hashPassword(plainPassword, salt);
         
         if (hashedPassword == null) {
-            System.out.println("❌ Failed to hash password");
+            System.out.println("❌ [AdminData] Failed to hash password");
             return false;
         }
 
@@ -280,6 +339,7 @@ public class AdminData {
             File saltFile = new File(ADMIN_SALT_FILE);
             if (!saltFile.exists()) {
                 saltFile.createNewFile();
+                System.out.println("✅ [AdminData] Created salt file");
             }
             
             // Save salt to separate file
@@ -295,21 +355,21 @@ public class AdminData {
                            hashedPassword + ":" + 
                            admin.getRole());
                 writer.newLine();
-                System.out.println("✅ Admin saved: " + adminId);
+                System.out.println("✅ [AdminData] Admin saved: " + adminId + " | Role: " + admin.getRole());
                 return true;
             }
         } catch (IOException e) {
-            System.out.println("❌ Error saving admin: " + e.getMessage());
+            System.out.println("❌ [AdminData] Error saving admin: " + e.getMessage());
             return false;
         }
     }
 
     /**
-     * Deletes an admin by ID.
+     * Deletes an admin by ID
      */
     public static boolean deleteAdmin(String adminId) {
         if (adminId == null || adminId.trim().isEmpty()) {
-            System.out.println("❌ Invalid admin ID");
+            System.out.println("❌ [AdminData] Invalid admin ID");
             return false;
         }
         
@@ -326,7 +386,7 @@ public class AdminData {
         }
         
         if (!found) {
-            System.out.println("❌ Admin not found: " + adminId);
+            System.out.println("❌ [AdminData] Admin not found: " + adminId);
             return false;
         }
 
@@ -342,16 +402,16 @@ public class AdminData {
             // Also delete from salt file
             deleteAdminSalt(adminId);
             
-            System.out.println("✅ Admin deleted: " + adminId);
+            System.out.println("✅ [AdminData] Admin deleted: " + adminId);
             return true;
         } catch (IOException e) {
-            System.out.println("❌ Error deleting admin: " + e.getMessage());
+            System.out.println("❌ [AdminData] Error deleting admin: " + e.getMessage());
             return false;
         }
     }
 
     /**
-     * Deletes admin salt from salt file.
+     * Deletes admin salt from salt file
      */
     private static void deleteAdminSalt(String adminId) {
         try {
@@ -367,28 +427,27 @@ public class AdminData {
                 }
             }
         } catch (IOException e) {
-            System.out.println("❌ Error deleting admin salt: " + e.getMessage());
+            System.out.println("❌ [AdminData] Error deleting admin salt: " + e.getMessage());
         }
     }
 
     /**
-     * Updates an admin's password with hashing.
-     * Public method that accepts plain password.
+     * Updates an admin's password with hashing
      */
     public static boolean updateAdminPassword(String adminId, String newPlainPassword) {
         if (adminId == null || adminId.trim().isEmpty()) {
-            System.out.println("❌ Invalid admin ID");
+            System.out.println("❌ [AdminData] Invalid admin ID");
             return false;
         }
         
         if (newPlainPassword == null || newPlainPassword.length() < 6) {
-            System.out.println("❌ Password must be at least 6 characters");
+            System.out.println("❌ [AdminData] Password must be at least 6 characters");
             return false;
         }
         
         // Check if admin exists
         if (!adminExists(adminId)) {
-            System.out.println("❌ Admin not found: " + adminId);
+            System.out.println("❌ [AdminData] Admin not found: " + adminId);
             return false;
         }
         
@@ -397,7 +456,7 @@ public class AdminData {
         String newHashedPassword = SecurityUtils.hashPassword(newPlainPassword, newSalt);
         
         if (newHashedPassword == null) {
-            System.out.println("❌ Failed to hash new password");
+            System.out.println("❌ [AdminData] Failed to hash new password");
             return false;
         }
         
@@ -405,7 +464,7 @@ public class AdminData {
     }
 
     /**
-     * Internal method to update password with already hashed password and salt.
+     * Internal method to update password with already hashed password and salt
      */
     private static boolean updateAdminPasswordWithSalt(String adminId, String newHashedPassword, String newSalt) {
         // Update admin record
@@ -421,7 +480,7 @@ public class AdminData {
         }
         
         if (!found) {
-            System.out.println("❌ Admin not found: " + adminId);
+            System.out.println("❌ [AdminData] Admin not found: " + adminId);
             return false;
         }
 
@@ -437,16 +496,16 @@ public class AdminData {
             // Update salt in salt file
             updateAdminSalt(adminId, newSalt);
             
-            System.out.println("✅ Password updated for admin: " + adminId);
+            System.out.println("✅ [AdminData] Password updated for admin: " + adminId);
             return true;
         } catch (IOException e) {
-            System.out.println("❌ Error updating password: " + e.getMessage());
+            System.out.println("❌ [AdminData] Error updating password: " + e.getMessage());
             return false;
         }
     }
 
     /**
-     * Updates admin salt in salt file.
+     * Updates admin salt in salt file
      */
     private static void updateAdminSalt(String adminId, String newSalt) {
         try {
@@ -484,19 +543,19 @@ public class AdminData {
                 }
             }
         } catch (IOException e) {
-            System.out.println("❌ Error updating salt: " + e.getMessage());
+            System.out.println("❌ [AdminData] Error updating salt: " + e.getMessage());
         }
     }
 
     /**
-     * Gets all admin details.
+     * Gets all admin details
      */
     public static String[] getAllAdmins() {
         return readFileLines(ADMIN_FILE);
     }
 
     /**
-     * Reads file lines into an array.
+     * Reads file lines into an array
      */
     private static String[] readFileLines(String filePath) {
         File file = new File(filePath);
@@ -509,138 +568,126 @@ public class AdminData {
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                if (!line.trim().isEmpty()) {
+                line = line.trim();
+                if (!line.isEmpty()) {
                     linesList.add(line);
                 }
             }
         } catch (IOException e) {
-            System.out.println("❌ Error reading file: " + filePath + " - " + e.getMessage());
+            System.out.println("❌ [AdminData] Error reading file: " + filePath + " - " + e.getMessage());
         }
         
         return linesList.toArray(new String[0]);
     }
 
     /**
-     * EMERGENCY FIX: Migrates existing plaintext passwords to hashed format.
-     * This should be run ONCE after implementing password hashing.
+     * Debug method to view admin file contents
      */
-    public static void migrateToHashedPasswords() {
-        System.out.println("🚀 Starting admin password migration...");
+    public static void printAdminFileContents() {
+        System.out.println("\n📋 [AdminData] Contents of " + ADMIN_FILE + ":");
+        System.out.println("=" .repeat(80));
         
-        try {
-            // Create backup first
-            createBackup();
-            
-            // Create salt file if it doesn't exist
-            File saltFile = new File(ADMIN_SALT_FILE);
-            if (!saltFile.exists()) {
-                saltFile.createNewFile();
-                System.out.println("✅ Created salt file: " + ADMIN_SALT_FILE);
-            }
-            
-            String[] lines = readFileLines(ADMIN_FILE);
-            List<String> updatedLines = new ArrayList<>();
-            
-            for (String line : lines) {
-                if (line == null || line.isEmpty()) {
-                    continue;
+        try (BufferedReader reader = new BufferedReader(new FileReader(ADMIN_FILE))) {
+            String line;
+            int lineNum = 1;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                
+                System.out.print(lineNum + ": ");
+                String[] parts = line.split(":");
+                if (parts.length >= 4) {
+                    System.out.print("ID: " + parts[0] + " | ");
+                    System.out.print("Name: " + parts[1] + " | ");
+                    System.out.print("Password hash: " + 
+                        (parts[2].length() > 20 ? parts[2].substring(0, 20) + "..." : parts[2]) + " | ");
+                    System.out.print("Role: " + parts[3]);
+                } else {
+                    System.out.print("MALFORMED LINE: " + line);
                 }
+                System.out.println();
+                lineNum++;
+            }
+        } catch (IOException e) {
+            System.out.println("❌ [AdminData] Error reading admin file: " + e.getMessage());
+        }
+        System.out.println("=" .repeat(80));
+    }
+
+    /**
+     * Emergency method to reset a specific admin's password
+     */
+    public static boolean emergencyPasswordReset(String adminId, String newPassword) {
+        System.out.println("🚨 [AdminData] EMERGENCY: Resetting password for admin: " + adminId);
+        
+        if (!adminExists(adminId)) {
+            System.out.println("❌ [AdminData] Admin not found");
+            return false;
+        }
+        
+        String salt = SecurityUtils.generateSalt();
+        String hashedPassword = SecurityUtils.hashPassword(newPassword, salt);
+        
+        if (hashedPassword == null) {
+            System.out.println("❌ [AdminData] Failed to hash password");
+            return false;
+        }
+        
+        // Read all lines
+        List<String> lines = new ArrayList<>();
+        boolean updated = false;
+        
+        try (BufferedReader reader = new BufferedReader(new FileReader(ADMIN_FILE))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
                 
                 String[] parts = line.split(":");
-                if (parts.length == 4) {
-                    String adminId = parts[0];
-                    String plainPassword = parts[2];
-                    
-                    // Skip if already looks hashed (long Base64 string)
-                    if (plainPassword.length() <= 20 && !plainPassword.isEmpty()) {
-                        // Generate salt and hash
-                        String salt = SecurityUtils.generateSalt();
-                        String hashedPassword = SecurityUtils.hashPassword(plainPassword, salt);
-                        
-                        if (hashedPassword != null) {
-                            // Update admin record
-                            updatedLines.add(parts[0] + ":" + parts[1] + ":" + hashedPassword + ":" + parts[3]);
-                            
-                            // Save salt
-                            try (BufferedWriter saltWriter = new BufferedWriter(new FileWriter(ADMIN_SALT_FILE, true))) {
-                                saltWriter.write(adminId + ":" + salt);
-                                saltWriter.newLine();
-                            }
-                            
-                            System.out.println("✅ Migrated admin: " + adminId);
-                        } else {
-                            System.out.println("❌ Failed to hash password for: " + adminId);
-                            updatedLines.add(line); // Keep original
-                        }
-                    } else {
-                        System.out.println("⚠️ Skipping (already hashed?): " + adminId);
-                        updatedLines.add(line); // Keep original
-                    }
+                if (parts.length >= 4 && parts[0].equals(adminId)) {
+                    // Update this line
+                    lines.add(parts[0] + ":" + parts[1] + ":" + hashedPassword + ":" + parts[3]);
+                    updated = true;
+                    System.out.println("✅ [AdminData] Updated password in file");
                 } else {
-                    updatedLines.add(line); // Keep original line
+                    lines.add(line);
                 }
             }
-            
-            // Write back updated records
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(ADMIN_FILE))) {
-                for (String line : updatedLines) {
-                    writer.write(line);
-                    writer.newLine();
-                }
-            }
-            
-            System.out.println("✅ Admin password migration completed!");
-            
         } catch (IOException e) {
-            System.out.println("❌ Migration error: " + e.getMessage());
+            System.out.println("❌ [AdminData] Error reading admin file: " + e.getMessage());
+            return false;
         }
-    }
-
-    /**
-     * Validates admin ID format.
-     */
-    public static boolean isValidAdminId(String adminId) {
-        return SecurityUtils.isValidId(adminId);
-    }
-
-    /**
-     * Validates admin name format.
-     */
-    public static boolean isValidAdminName(String adminName) {
-        return SecurityUtils.isValidName(adminName);
-    }
-
-    /**
-     * EMERGENCY BACKUP: Creates a backup of admin data before migration.
-     */
-    public static void createBackup() {
-        try {
-            String timestamp = String.valueOf(System.currentTimeMillis());
-            String backupFile = ADMIN_FILE + ".backup." + timestamp;
-            
-            File sourceFile = new File(ADMIN_FILE);
-            if (!sourceFile.exists()) {
-                System.out.println("⚠️ No admin file to backup");
-                return;
+        
+        if (!updated) {
+            System.out.println("❌ [AdminData] Admin not found in file");
+            return false;
+        }
+        
+        // Write back
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(ADMIN_FILE))) {
+            for (String line : lines) {
+                writer.write(line);
+                writer.newLine();
             }
-            
-            try (BufferedReader reader = new BufferedReader(new FileReader(ADMIN_FILE));
-                 BufferedWriter writer = new BufferedWriter(new FileWriter(backupFile))) {
-                
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    writer.write(line);
-                    writer.newLine();
-                }
-            }
-            
-            System.out.println("✅ Backup created: " + backupFile);
-            
         } catch (IOException e) {
-            System.out.println("❌ Error creating backup: " + e.getMessage());
+            System.out.println("❌ [AdminData] Error writing admin file: " + e.getMessage());
+            return false;
         }
+        
+        // Update salt
+        try (BufferedWriter saltWriter = new BufferedWriter(new FileWriter(ADMIN_SALT_FILE, true))) {
+            saltWriter.write(adminId + ":" + salt);
+            saltWriter.newLine();
+            System.out.println("✅ [AdminData] Updated salt for admin: " + adminId);
+        } catch (IOException e) {
+            System.out.println("⚠️ [AdminData] Updated password but failed to save salt: " + e.getMessage());
+        }
+        
+        System.out.println("✅ [AdminData] Emergency password reset complete for: " + adminId);
+        System.out.println("🔐 New password: " + newPassword);
+        return true;
     }
-    
+
     /**
      * Additional utility method: Get all admin IDs
      */
@@ -656,5 +703,59 @@ public class AdminData {
         }
         
         return ids;
+    }
+
+    /**
+     * Create backups of admin files (admins and salts) with timestamp suffix.
+     */
+    public static boolean createBackup() {
+        try {
+            String ts = String.valueOf(System.currentTimeMillis());
+            File adminFile = new File(ADMIN_FILE);
+            if (adminFile.exists()) {
+                Files.copy(Paths.get(ADMIN_FILE), Paths.get(ADMIN_FILE + ".backup." + ts), StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            File saltFile = new File(ADMIN_SALT_FILE);
+            if (saltFile.exists()) {
+                Files.copy(Paths.get(ADMIN_SALT_FILE), Paths.get(ADMIN_SALT_FILE + ".backup." + ts), StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            System.out.println("✅ [AdminData] Backup created with timestamp: " + ts);
+            return true;
+        } catch (IOException e) {
+            System.out.println("❌ [AdminData] Failed to create backup: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Migrate any plaintext admin passwords in the admin file to hashed form.
+     * Returns the number of admins migrated.
+     */
+    public static int migrateToHashedPasswords() {
+        String[] lines = readFileLines(ADMIN_FILE);
+        if (lines == null || lines.length == 0) return 0;
+
+        int migrated = 0;
+
+        for (String line : lines) {
+            if (line == null || line.trim().isEmpty()) continue;
+            String[] parts = line.split(":");
+            if (parts.length >= 4) {
+                String adminId = parts[0];
+                String storedPass = parts[2];
+
+                // If not Base64 (legacy) and seems like plaintext, migrate
+                if (!isBase64(storedPass)) {
+                    System.out.println("🔄 [AdminData] Migrating admin password for: " + adminId);
+                    migrateAdminToHashedPassword(adminId, storedPass);
+                    migrated++;
+                }
+            }
+        }
+
+        System.out.println("✅ [AdminData] Migration complete. Total migrated: " + migrated);
+        return migrated;
     }
 }

@@ -16,6 +16,7 @@ import java.util.Date;
  * Features improved UI, validation, and error handling.
  */
 public class VotingFrame extends JFrame {
+    private static final long serialVersionUID = 1L;
     private String voterId;
     private String voterName;
     private Timer countdownTimer;

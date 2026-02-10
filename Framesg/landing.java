@@ -8,6 +8,7 @@ import javax.swing.*;
  * Navigates to RegisterFrame when "Let's Go" is clicked.
  */
 public class landing extends JFrame {
+    private static final long serialVersionUID = 1L;
 
     public landing() {
         // Frame setup

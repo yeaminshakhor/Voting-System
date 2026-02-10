@@ -11,6 +11,7 @@ import java.io.*;
  * Expects format: id:name:age:password
  */
 public class LoginFrame extends JFrame {
+    private static final long serialVersionUID = 1L;
     private static final String VOTERS_FILE = "data_voters.txt";
 
     public LoginFrame() {

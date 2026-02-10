@@ -7,6 +7,7 @@ import java.awt.event.*;
 import javax.swing.*;
 
 public class VoterRegistration extends JFrame implements ActionListener {
+    private static final long serialVersionUID = 1L;
     private static final Color NAVY_BLUE = new Color(25, 25, 112);
     private static final Color LIGHT_BLUE = new Color(173, 216, 230);
     private static final Color DODGER_BLUE = new Color(30, 144, 255);
@@ -25,7 +26,16 @@ public class VoterRegistration extends JFrame implements ActionListener {
         this.parentFrame = parentFrame;
         setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
         setLocationRelativeTo(null);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        this.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                setVisible(false);
+                if (parentFrame != null) {
+                    parentFrame.setVisible(true);
+                }
+            }
+        });
 
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(NAVY_BLUE);

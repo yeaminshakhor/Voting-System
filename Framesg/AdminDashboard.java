@@ -9,6 +9,9 @@ import Utils.Theme;
 import Utils.AdminRole;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.GridBagLayout;
+import java.awt.GridBagConstraints;
+import java.awt.Insets;
 import java.util.*;
 import javax.swing.*;
 
@@ -848,51 +851,51 @@ public class AdminDashboard extends JFrame implements ActionListener {
 
     private void showDeleteVoterDialog(JDialog parentDialog) {
         JDialog dialog = new JDialog(parentDialog, "Delete Voter", true);
-        dialog.setSize(400, 200);
+        dialog.setSize(420, 220);
         dialog.setLocationRelativeTo(parentDialog);
-        
+
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
         panel.setBorder(Theme.getDialogBorder());
         panel.setBackground(Theme.BACKGROUND_WHITE);
-        
+
         gbc.gridx = 0;
         gbc.gridy = 0;
         JLabel warningLabel = new JLabel("<html><font color='red'><b>⚠️ WARNING: This action cannot be undone!</b></font></html>");
         warningLabel.setFont(Theme.BODY_BOLD_FONT);
         panel.add(warningLabel, gbc);
-        
+
         gbc.gridx = 0;
         gbc.gridy = 1;
         JLabel idLabel = new JLabel("Enter Voter ID to delete:");
         idLabel.setFont(Theme.BODY_FONT);
         panel.add(idLabel, gbc);
-        
+
         gbc.gridx = 1;
         JTextField idField = new JTextField(20);
         idField.setFont(Theme.BODY_FONT);
         panel.add(idField, gbc);
-        
+
         gbc.gridx = 0;
         gbc.gridy = 2;
         gbc.gridwidth = 2;
         gbc.anchor = GridBagConstraints.CENTER;
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
-        
+
         JButton deleteBtn = new JButton("Delete Voter");
         deleteBtn.setBackground(Theme.ERROR_RED);
         deleteBtn.setForeground(Theme.TEXT_WHITE);
         deleteBtn.setFont(Theme.BODY_BOLD_FONT);
         deleteBtn.addActionListener(evt -> {
             String voterId = idField.getText().trim();
-            
+
             if (voterId.isEmpty()) {
                 JOptionPane.showMessageDialog(dialog, "❌ Please enter a voter ID", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            
+
             // Confirm deletion
             int confirm = JOptionPane.showConfirmDialog(dialog,
                 "<html><b>Are you absolutely sure?</b><br><br>" +
@@ -902,7 +905,7 @@ public class AdminDashboard extends JFrame implements ActionListener {
                 "Confirm Deletion",
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.WARNING_MESSAGE);
-            
+
             if (confirm == JOptionPane.YES_OPTION) {
                 try {
                     if (Data.ElectionData.deleteVoter(voterId)) {
@@ -918,16 +921,16 @@ public class AdminDashboard extends JFrame implements ActionListener {
             }
         });
         buttonPanel.add(deleteBtn);
-        
+
         JButton cancelBtn = new JButton("Cancel");
         cancelBtn.setBackground(Theme.PRIMARY_BLUE);
         cancelBtn.setForeground(Theme.TEXT_WHITE);
         cancelBtn.setFont(Theme.BODY_FONT);
         cancelBtn.addActionListener(evt -> dialog.dispose());
         buttonPanel.add(cancelBtn);
-        
+
         panel.add(buttonPanel, gbc);
-        
+
         dialog.setContentPane(panel);
         dialog.setVisible(true);
     }
@@ -1045,32 +1048,79 @@ public class AdminDashboard extends JFrame implements ActionListener {
     
     private void showAddNomineeDialog(JDialog parentDialog) {
         JDialog dialog = new JDialog(parentDialog, "Add Nominee", true);
-        dialog.setSize(500, 300);
+        dialog.setSize(550, 420);
         dialog.setLocationRelativeTo(parentDialog);
         
-        JPanel panel = new JPanel();
-        panel.setLayout(new GridLayout(3, 2, 10, 10));
+        JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(Theme.CARD_WHITE);
         panel.setBorder(Theme.getDialogBorder());
         
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(8, 8, 8, 8);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        
         JLabel idLabel = new JLabel("Nominee ID:");
-        idLabel.setFont(Theme.BODY_BOLD_FONT);
-        JTextField idField = new JTextField();
+        idLabel.setFont(Theme.BODY_FONT);
+        JTextField idField = new JTextField(15);
+        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.3;
+        panel.add(idLabel, gbc);
+        gbc.gridx = 1; gbc.weightx = 0.7;
+        panel.add(idField, gbc);
         
         JLabel nameLabel = new JLabel("Name:");
-        nameLabel.setFont(Theme.BODY_BOLD_FONT);
-        JTextField nameField = new JTextField();
+        nameLabel.setFont(Theme.BODY_FONT);
+        JTextField nameField = new JTextField(15);
+        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.3;
+        panel.add(nameLabel, gbc);
+        gbc.gridx = 1; gbc.weightx = 0.7;
+        panel.add(nameField, gbc);
         
         JLabel partyLabel = new JLabel("Party:");
-        partyLabel.setFont(Theme.BODY_BOLD_FONT);
-        JTextField partyField = new JTextField();
+        partyLabel.setFont(Theme.BODY_FONT);
+        JTextField partyField = new JTextField(15);
+        gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.3;
+        panel.add(partyLabel, gbc);
+        gbc.gridx = 1; gbc.weightx = 0.7;
+        panel.add(partyField, gbc);
         
-        panel.add(idLabel);
-        panel.add(idField);
-        panel.add(nameLabel);
-        panel.add(nameField);
-        panel.add(partyLabel);
-        panel.add(partyField);
+        // Image upload section (only for SuperAdmin or ElectionManager)
+        boolean canUploadImage = AdminRole.isSuperAdmin(adminRole) || 
+                                AdminRole.hasPermission(adminRole, AdminRole.PERM_MANAGE_ELECTIONS);
+        
+        JLabel iconLabel = new JLabel("Icon Image:" + (canUploadImage ? " (Optional)" : " (No Access)"));
+        iconLabel.setFont(Theme.BODY_FONT);
+        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0.3;
+        panel.add(iconLabel, gbc);
+        
+        JLabel selectedFileLabel = new JLabel("No image selected");
+        selectedFileLabel.setFont(Theme.BODY_FONT);
+        selectedFileLabel.setForeground(Theme.TEXT_MEDIUM);
+        
+        final String[] selectedImagePath = {null};
+        
+        JButton uploadButton = new JButton("📁 Browse");
+        uploadButton.setBackground(Theme.INFO_CYAN);
+        uploadButton.setForeground(Theme.TEXT_WHITE);
+        uploadButton.setFont(Theme.BODY_FONT);
+        uploadButton.setEnabled(canUploadImage);
+        uploadButton.addActionListener(e -> {
+            javax.swing.JFileChooser chooser = new javax.swing.JFileChooser();
+            javax.swing.filechooser.FileNameExtensionFilter filter = 
+                new javax.swing.filechooser.FileNameExtensionFilter("Image Files", "jpg", "jpeg", "png", "gif");
+            chooser.setFileFilter(filter);
+            int result = chooser.showOpenDialog(dialog);
+            if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
+                selectedImagePath[0] = chooser.getSelectedFile().getAbsolutePath();
+                selectedFileLabel.setText(chooser.getSelectedFile().getName());
+                selectedFileLabel.setForeground(Theme.SUCCESS_GREEN);
+            }
+        });
+        gbc.gridx = 1; gbc.weightx = 0.7;
+        panel.add(uploadButton, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2; gbc.weightx = 1.0;
+        panel.add(selectedFileLabel, gbc);
+        gbc.gridwidth = 1;
         
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
         buttonPanel.setBackground(Theme.BACKGROUND_WHITE);
@@ -1091,8 +1141,14 @@ public class AdminDashboard extends JFrame implements ActionListener {
             Nominee nominee = new Nominee(id, name, party.isEmpty() ? "Independent" : party);
             
             if (Data.ElectionData.addNominee(nominee)) {
+                // If image was selected, copy it to nominee folder
+                if (selectedImagePath[0] != null) {
+                    copyNomineeImage(selectedImagePath[0], id);
+                    SqlAdminManager.logAdminAction(adminId, "ADD_NOMINEE", "Added nominee: " + name + " (ID: " + id + ") with image");
+                } else {
+                    SqlAdminManager.logAdminAction(adminId, "ADD_NOMINEE", "Added nominee: " + name + " (ID: " + id + ")");
+                }
                 JOptionPane.showMessageDialog(dialog, "✅ Nominee added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-                SqlAdminManager.logAdminAction(adminId, "ADD_NOMINEE", "Added nominee: " + name + " (ID: " + id + ")");
                 dialog.dispose();
             } else {
                 JOptionPane.showMessageDialog(dialog, "❌ Failed to add nominee", "Error", JOptionPane.ERROR_MESSAGE);
@@ -1115,6 +1171,26 @@ public class AdminDashboard extends JFrame implements ActionListener {
         dialog.setVisible(true);
     }
     
+    private void copyNomineeImage(String sourcePath, String nomineeId) {
+        try {
+            java.io.File sourceFile = new java.io.File(sourcePath);
+            java.io.File nomineesFolder = new java.io.File("nominee_images");
+            if (!nomineesFolder.exists()) {
+                nomineesFolder.mkdir();
+            }
+            
+            String extension = sourceFile.getName().substring(sourceFile.getName().lastIndexOf('.'));
+            java.io.File destFile = new java.io.File(nomineesFolder, nomineeId + extension);
+            
+            java.nio.file.Files.copy(sourceFile.toPath(), destFile.toPath(), 
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            
+            System.out.println("✅ [AdminDashboard] Nominee image saved: " + destFile.getAbsolutePath());
+        } catch (Exception ex) {
+            System.out.println("❌ [AdminDashboard] Error copying nominee image: " + ex.getMessage());
+        }
+    }
+    
     private void showNomineeListDialog(JDialog parentDialog) {
         String[] nominees = Data.ElectionData.getAllNominees();
         
@@ -1124,23 +1200,47 @@ public class AdminDashboard extends JFrame implements ActionListener {
         }
         
         JDialog dialog = new JDialog(parentDialog, "Nominee List", true);
-        dialog.setSize(600, 400);
+        dialog.setSize(600, 420);
         dialog.setLocationRelativeTo(parentDialog);
-        
-        JTextArea textArea = new JTextArea();
-        textArea.setEditable(false);
-        textArea.setFont(Theme.BODY_FONT);
-        textArea.setText("╔═══════════════════════════════════════════════════════╗\n");
-        textArea.append("║           NOMINEE LIST (" + nominees.length + " nominees)              ║\n");
-        textArea.append("╚═══════════════════════════════════════════════════════╝\n\n");
-        
-        for (int i = 0; i < nominees.length; i++) {
-            textArea.append((i + 1) + ". " + nominees[i] + "\n");
-        }
-        
-        JScrollPane scrollPane = new JScrollPane(textArea);
+
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        for (String s : nominees) listModel.addElement(s);
+
+        JList<String> list = new JList<>(listModel);
+        list.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> listComp, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                JLabel lbl = (JLabel) super.getListCellRendererComponent(listComp, value, index, isSelected, cellHasFocus);
+                lbl.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
+                try {
+                    String text = String.valueOf(value);
+                    String id = text.contains(":") ? text.split(":")[0].trim() : (text.contains(" - ") ? text.split(" - ")[0].trim() : null);
+                    if (id != null) {
+                        java.io.File imgDir = new java.io.File("nominee_images");
+                        if (imgDir.exists() && imgDir.isDirectory()) {
+                            java.io.File[] files = imgDir.listFiles();
+                            if (files != null) {
+                                for (java.io.File f : files) {
+                                    if (f.getName().startsWith(id + ".")) {
+                                        ImageIcon icon = new ImageIcon(f.getAbsolutePath());
+                                        Image img = icon.getImage().getScaledInstance(48, 48, Image.SCALE_SMOOTH);
+                                        lbl.setIcon(new ImageIcon(img));
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception ex) {
+                    lbl.setIcon(null);
+                }
+                return lbl;
+            }
+        });
+
+        JScrollPane scrollPane = new JScrollPane(list);
         scrollPane.setBorder(Theme.getDialogBorder());
-        
+
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.setBackground(Theme.BACKGROUND_WHITE);
         JButton closeButton = new JButton("Close");
@@ -1148,13 +1248,13 @@ public class AdminDashboard extends JFrame implements ActionListener {
         closeButton.setForeground(Theme.TEXT_WHITE);
         closeButton.addActionListener(e -> dialog.dispose());
         buttonPanel.add(closeButton);
-        
+
         JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
         mainPanel.setBackground(Theme.BACKGROUND_WHITE);
         mainPanel.setBorder(Theme.getDialogBorder());
         mainPanel.add(scrollPane, BorderLayout.CENTER);
         mainPanel.add(buttonPanel, BorderLayout.SOUTH);
-        
+
         dialog.add(mainPanel);
         dialog.setVisible(true);
     }
@@ -1267,26 +1367,47 @@ public class AdminDashboard extends JFrame implements ActionListener {
     
     private void showCreateElectionDialog(JDialog parentDialog) {
         JDialog dialog = new JDialog(parentDialog, "Create Election", true);
-        dialog.setSize(500, 350);
+        dialog.setSize(420, 240);
         dialog.setLocationRelativeTo(parentDialog);
         
         JPanel panel = new JPanel();
-        panel.setLayout(new GridLayout(2, 2, 10, 10));
+        panel.setLayout(new GridLayout(4, 2, 8, 8));
         panel.setBackground(Theme.CARD_WHITE);
         panel.setBorder(Theme.getDialogBorder());
         
         JLabel nameLabel = new JLabel("Election Name:");
-        nameLabel.setFont(Theme.BODY_BOLD_FONT);
-        JTextField nameField = new JTextField();
+        nameLabel.setFont(Theme.BODY_FONT);
+        JTextField nameField = new JTextField(15);
         
         JLabel statusLabel = new JLabel("Status:");
-        statusLabel.setFont(Theme.BODY_BOLD_FONT);
+        statusLabel.setFont(Theme.BODY_FONT);
         JComboBox<String> statusBox = new JComboBox<>(new String[]{"ACTIVE", "INACTIVE"});
+
+        // Start / End date-time pickers
+        JLabel startLabel = new JLabel("Start (YYYY-MM-DD HH:mm):");
+        startLabel.setFont(Theme.BODY_FONT);
+        Date startDefault = new Date();
+        SpinnerDateModel startModel = new SpinnerDateModel(startDefault, null, null, java.util.Calendar.MINUTE);
+        JSpinner startSpinner = new JSpinner(startModel);
+        JSpinner.DateEditor startEditor = new JSpinner.DateEditor(startSpinner, "yyyy-MM-dd HH:mm");
+        startSpinner.setEditor(startEditor);
+
+        JLabel endLabel = new JLabel("End (YYYY-MM-DD HH:mm):");
+        endLabel.setFont(Theme.BODY_FONT);
+        Date endDefault = new Date(startDefault.getTime() + (7L * 24 * 60 * 60 * 1000));
+        SpinnerDateModel endModel = new SpinnerDateModel(endDefault, null, null, java.util.Calendar.MINUTE);
+        JSpinner endSpinner = new JSpinner(endModel);
+        JSpinner.DateEditor endEditor = new JSpinner.DateEditor(endSpinner, "yyyy-MM-dd HH:mm");
+        endSpinner.setEditor(endEditor);
         
         panel.add(nameLabel);
         panel.add(nameField);
         panel.add(statusLabel);
         panel.add(statusBox);
+        panel.add(startLabel);
+        panel.add(startSpinner);
+        panel.add(endLabel);
+        panel.add(endSpinner);
         
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
         buttonPanel.setBackground(Theme.BACKGROUND_WHITE);
@@ -1303,17 +1424,38 @@ public class AdminDashboard extends JFrame implements ActionListener {
                 return;
             }
             
-            // Create election with default dates (now + 7 days)
-            Date startDate = new Date();
-            Date endDate = new Date(startDate.getTime() + (7 * 24 * 60 * 60 * 1000));
+            // Read selected dates
+            Date startDate = (Date) startSpinner.getValue();
+            Date endDate = (Date) endSpinner.getValue();
             
+            if (startDate.after(endDate)) {
+                JOptionPane.showMessageDialog(dialog, "Start date/time must be before end date/time.", "Validation Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
             boolean success = Data.ElectionScheduler.setElectionSchedule(name, startDate, endDate, status.equals("ACTIVE"));
             if (success) {
                 JOptionPane.showMessageDialog(dialog, "✅ Election created successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                 SqlAdminManager.logAdminAction(adminId, "CREATE_ELECTION", "Created election: " + name + " with status: " + status);
                 dialog.dispose();
             } else {
-                JOptionPane.showMessageDialog(dialog, "❌ Failed to create election", "Error", JOptionPane.ERROR_MESSAGE);
+                // Provide more detailed diagnostics to the admin
+                // Sanitize name for filename checks (remove unsafe chars and spaces -> _)
+                String safe = name.replaceAll("[^a-zA-Z0-9\\s-]", "").trim().replaceAll("[\\s-]+", "_");
+                if (safe.isEmpty()) safe = "election";
+                String fileName = "election_schedule_" + safe + ".txt";
+                java.io.File f = new java.io.File(fileName);
+                String detail;
+                if (f.exists()) {
+                    detail = "A schedule file was created at: " + f.getAbsolutePath();
+                } else {
+                    detail = "No schedule file found. Possible causes:\n" +
+                             "- Database write failed (check DB connection)\n" +
+                             "- File write permission denied in application folder\n" +
+                             "- Election name already exists with invalid characters\n" +
+                             "Try checking logs or the application console for more details.";
+                }
+                JOptionPane.showMessageDialog(dialog, "❌ Failed to create election\n\n" + detail, "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
         buttonPanel.add(createButton);

@@ -1,0 +1,4 @@
+election_name:Meme of the Year
+start_time:1770745003128
+end_time:1771349803128
+is_active:true

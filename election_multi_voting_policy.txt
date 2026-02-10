@@ -1,2 +1,2 @@
-ALLOW
-# Policy: ALLOW: Voters can vote in multiple concurrent elections
+RESTRICT
+# Policy: RESTRICT: Voters can vote in only one election across all

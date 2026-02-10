@@ -114,11 +114,23 @@ public class ElectionScheduler {
                 System.out.println("✅ Election schedule set for: " + electionName);
                 return true;
             } else {
-                System.out.println("❌ Failed to set election schedule");
+                System.out.println("❌ Failed to set election schedule (no rows affected). Attempting file fallback...");
+                // Attempt file fallback
+                boolean fileOk = setElectionScheduleFile(electionName, startTime, endTime, isActive);
+                if (fileOk) {
+                    System.out.println("✅ Election schedule saved to file as fallback");
+                    return true;
+                }
                 return false;
             }
         } catch (SQLException e) {
-            System.out.println("❌ Error setting election schedule: " + e.getMessage());
+            System.out.println("❌ Error setting election schedule (SQL): " + e.getMessage());
+            System.out.println("ℹ️ Attempting file fallback (sanitized filename)...");
+            boolean fileOk = setElectionScheduleFile(electionName, startTime, endTime, isActive);
+            if (fileOk) {
+                System.out.println("✅ Election schedule saved to file as fallback");
+                return true;
+            }
             return false;
         }
     }

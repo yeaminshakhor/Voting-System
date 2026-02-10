@@ -259,14 +259,55 @@ public class VoterVoting extends JFrame implements ActionListener {
                 BorderFactory.createLineBorder(Theme.BORDER_GRAY, 1),
                 BorderFactory.createEmptyBorder(5, 10, 5, 10)
             ));
-            nomineeComboBox.setRenderer(new DefaultListCellRenderer() {
+
+            // Renderer that shows nominee icon if present
+            nomineeComboBox.setRenderer(new ListCellRenderer<Object>() {
+                private final DefaultListCellRenderer defaultRenderer = new DefaultListCellRenderer();
+
                 @Override
                 public Component getListCellRendererComponent(JList<?> list, Object value,
                         int index, boolean isSelected, boolean cellHasFocus) {
-                    JLabel label = (JLabel) super.getListCellRendererComponent(
-                        list, value, index, isSelected, cellHasFocus);
-                    label.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-                    return label;
+                    JLabel renderer = (JLabel) defaultRenderer.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                    renderer.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+
+                    try {
+                        String text = String.valueOf(value);
+                        // Expecting format: id:name:party or "id - name (party)"
+                        String id = null;
+                        if (text.contains(" - ") && text.contains(" (")) {
+                            // from Admin stringified earlier: id - name (party)
+                            id = text.split(" - ")[0].trim();
+                        } else if (text.contains(":")) {
+                            id = text.split(":")[0].trim();
+                        }
+
+                        if (id != null) {
+                            java.io.File imgDir = new java.io.File("nominee_images");
+                            if (imgDir.exists() && imgDir.isDirectory()) {
+                                java.io.File[] files = imgDir.listFiles();
+                                java.io.File imgFile = null;
+                                if (files != null) {
+                                    for (java.io.File f : files) {
+                                        if (f.getName().startsWith(id + ".")) {
+                                            imgFile = f;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (imgFile != null) {
+                                    ImageIcon icon = new ImageIcon(imgFile.getAbsolutePath());
+                                    Image img = icon.getImage().getScaledInstance(38, 38, Image.SCALE_SMOOTH);
+                                    renderer.setIcon(new ImageIcon(img));
+                                } else {
+                                    renderer.setIcon(null);
+                                }
+                            }
+                        }
+                    } catch (Exception ex) {
+                        renderer.setIcon(null);
+                    }
+
+                    return renderer;
                 }
             });
             

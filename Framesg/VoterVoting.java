@@ -50,6 +50,11 @@ public class VoterVoting extends JFrame implements ActionListener {
     }
 
     private void checkVotingEligibility() {
+        String currentElection = ElectionScheduler.getCurrentActiveElection();
+        if (currentElection == null || currentElection.isEmpty()) {
+            currentElection = "DEFAULT";
+        }
+        
         // Check if election is active
         if (!ElectionScheduler.isVotingAllowed()) {
             String status = ElectionScheduler.getElectionStatus();
@@ -58,18 +63,32 @@ public class VoterVoting extends JFrame implements ActionListener {
                 "\n\nPlease try again during the election period.",
                 "Voting Not Available", JOptionPane.WARNING_MESSAGE);
             
-            // Optionally close the window or show disabled interface
             setVisible(false);
             parentFrame.setVisible(true);
             return;
         }
         
-        // Check if voter has already voted
-        if (ElectionData.hasVoted(voterId)) {
+        // Check if voter can vote in this specific election based on policy
+        if (!ElectionData.canVoteInElection(voterId, currentElection)) {
+            boolean multiVotingAllowed = ElectionData.isMultiElectionVotingAllowed();
+            String message;
+            
+            if (!multiVotingAllowed) {
+                // Multi-election voting is disabled
+                java.util.List<String> votedElections = ElectionData.getVoterElectionHistory(voterId);
+                message = "❌ You have already voted!\n\n" +
+                         "According to the voting policy, you can only vote in one election.\n" +
+                         "You have already voted in: " + votedElections.get(0) + "\n\n" +
+                         "If you believe this is an error, please contact the election administrator.";
+            } else {
+                // Multi-election voting is allowed but voter has voted in this specific election
+                message = "⚠️ You have already cast your vote in this election!\n\n" +
+                         "Each voter can only vote once per election.\n" +
+                         "If you believe this is an error, please contact the election administrator.";
+            }
+            
             JOptionPane.showMessageDialog(this,
-                "⚠️ You have already cast your vote!\n\n" +
-                "Each voter can only vote once per election.\n" +
-                "If you believe this is an error, please contact the election administrator.",
+                message,
                 "Already Voted", JOptionPane.INFORMATION_MESSAGE);
             
             // Show voting history
@@ -80,17 +99,36 @@ public class VoterVoting extends JFrame implements ActionListener {
     }
 
     private void showVotingHistory() {
-        String history = ElectionData.getVoterHistory(voterId);
-        if (history != null && !history.isEmpty()) {
-            JTextArea textArea = new JTextArea(history);
-            textArea.setEditable(false);
-            textArea.setFont(Theme.MONOSPACE_FONT);
-            JScrollPane scrollPane = new JScrollPane(textArea);
-            scrollPane.setPreferredSize(new Dimension(400, 200));
-            
-            JOptionPane.showMessageDialog(this, scrollPane, 
-                "Your Voting History", JOptionPane.INFORMATION_MESSAGE);
+        java.util.List<String> electionsVoted = ElectionData.getVoterElectionHistory(voterId);
+        StringBuilder history = new StringBuilder();
+        history.append("Your Voting History\n");
+        history.append("═══════════════════════════════════════════\n\n");
+        history.append("Voter ID: ").append(voterId).append("\n");
+        history.append("Total Elections Voted In: ").append(electionsVoted.size()).append("\n\n");
+        
+        if (electionsVoted.isEmpty()) {
+            history.append("You have not voted in any election yet.\n");
+        } else {
+            history.append("Elections:\n");
+            for (int i = 0; i < electionsVoted.size(); i++) {
+                history.append("  ").append(i+1).append(". ").append(electionsVoted.get(i)).append("\n");
+            }
         }
+        
+        history.append("\n───────────────────────────────────────────\n");
+        history.append("Voting Policy: ");
+        history.append(ElectionData.isMultiElectionVotingAllowed() ? 
+            "ALLOW multiple elections" : 
+            "RESTRICT to single election");
+        
+        JTextArea textArea = new JTextArea(history.toString());
+        textArea.setEditable(false);
+        textArea.setFont(Theme.MONOSPACE_FONT);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(400, 200));
+        
+        JOptionPane.showMessageDialog(this, scrollPane, 
+            "Your Voting History", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void initUI() {

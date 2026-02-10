@@ -1,0 +1,2 @@
+ALLOW
+# Policy: ALLOW: Voters can vote in multiple concurrent elections

@@ -16,6 +16,7 @@ public class ElectionData {
     public static final String VOTE_FILE = "database_votes.txt";
     public static final String VOTER_VOTED_LOG = "database_voter_voted_log.txt";
     public static final String ELECTION_CONFIG_FILE = "election_config.txt";
+    public static final String MULTI_ELECTION_POLICY_FILE = "election_multi_voting_policy.txt";
     
     private static final int MAX_LOGIN_ATTEMPTS = 3;
     private static final long LOCKOUT_TIME_MS = 15 * 60 * 1000; // 15 minutes
@@ -567,8 +568,153 @@ public class ElectionData {
     }
 
     /**
-     * Get all voters with security info hidden.
+     * Check if voter has already voted in a specific election.
+     * Supports per-election voting restrictions.
      */
+    public static boolean hasVotedInElection(String voterId, String electionName) {
+        if (voterId == null || voterId.trim().isEmpty() || electionName == null || electionName.trim().isEmpty()) {
+            return false;
+        }
+        
+        File votedFile = new File(VOTER_VOTED_LOG);
+        if (!votedFile.exists()) {
+            return false;
+        }
+        
+        try (BufferedReader reader = new BufferedReader(new FileReader(VOTER_VOTED_LOG))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                String[] parts = line.split(":");
+                // Format: voterId:timestamp:electionName (new format with election)
+                // Or: voterId:timestamp (old format - treated as DEFAULT election)
+                if (parts.length >= 1 && parts[0].equals(voterId)) {
+                    // If new format with election name specified
+                    if (parts.length >= 3) {
+                        String votedElection = parts[2];
+                        if (votedElection.equals(electionName)) {
+                            return true;
+                        }
+                    } else {
+                        // Old format - check if looking for DEFAULT election
+                        if ("DEFAULT".equals(electionName)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            return false;
+        }
+        return false;
+    }
+
+    /**
+     * Check if voter can vote in a specific election based on admin policy.
+     * Returns true if voter is allowed to vote in this election.
+     */
+    public static boolean canVoteInElection(String voterId, String electionName) {
+        if (voterId == null || voterId.trim().isEmpty() || electionName == null || electionName.trim().isEmpty()) {
+            return false;
+        }
+        
+        // Check if multi-election voting is globally disabled
+        if (!isMultiElectionVotingAllowed()) {
+            // If multi-voting disabled, voter can only vote if not voted before
+            return !hasVoted(voterId);
+        }
+        
+        // Check if this voter has specific restrictions
+        return !hasVotedInElection(voterId, electionName);
+    }
+
+    /**
+     * Get the multi-election voting policy setting.
+     * Returns true if voters can vote in multiple elections, false if only one election.
+     */
+    public static boolean isMultiElectionVotingAllowed() {
+        File policyFile = new File(MULTI_ELECTION_POLICY_FILE);
+        
+        // Default: Allow multi-election voting
+        if (!policyFile.exists()) {
+            saveMultiElectionVotingPolicy(true);
+            return true;
+        }
+        
+        try (BufferedReader reader = new BufferedReader(new FileReader(MULTI_ELECTION_POLICY_FILE))) {
+            String line = reader.readLine();
+            if (line != null) {
+                return line.trim().equalsIgnoreCase("true") || line.trim().equalsIgnoreCase("ALLOW");
+            }
+        } catch (IOException e) {
+            System.out.println("⚠️ Error reading multi-election policy: " + e.getMessage());
+        }
+        return true; // Default to allowing multi-election voting
+    }
+
+    /**
+     * Set the global multi-election voting policy.
+     * true = voters can vote in multiple elections
+     * false = voters can vote in only one election
+     */
+    public static void setMultiElectionVotingPolicy(boolean allowMultiVoting) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(MULTI_ELECTION_POLICY_FILE))) {
+            writer.write(allowMultiVoting ? "ALLOW" : "RESTRICT");
+            writer.newLine();
+            String policyText = allowMultiVoting ? 
+                "ALLOW: Voters can vote in multiple concurrent elections" : 
+                "RESTRICT: Voters can vote in only one election across all";
+            writer.write("# Policy: " + policyText);
+            writer.newLine();
+            System.out.println("✅ Multi-election voting policy updated: " + policyText);
+        } catch (IOException e) {
+            System.out.println("❌ Error saving multi-election policy: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Helper to save the policy (internal use)
+     */
+    private static void saveMultiElectionVotingPolicy(boolean allowMultiVoting) {
+        setMultiElectionVotingPolicy(allowMultiVoting);
+    }
+
+    /**
+     * Get all elections a specific voter has voted in.
+     */
+    public static List<String> getVoterElectionHistory(String voterId) {
+        List<String> votedElections = new ArrayList<>();
+        if (voterId == null || voterId.trim().isEmpty()) {
+            return votedElections;
+        }
+        
+        File votedFile = new File(VOTER_VOTED_LOG);
+        if (!votedFile.exists()) {
+            return votedElections;
+        }
+        
+        try (BufferedReader reader = new BufferedReader(new FileReader(VOTER_VOTED_LOG))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                String[] parts = line.split(":");
+                if (parts.length >= 1 && parts[0].equals(voterId)) {
+                    // Extract election name if present (new format)
+                    if (parts.length >= 3) {
+                        votedElections.add(parts[2]);
+                    } else {
+                        votedElections.add("DEFAULT");
+                    }
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("⚠️ Error reading voter history: " + e.getMessage());
+        }
+        
+        return votedElections;
+    }
+
+
     public static String[] getAllVoters() {
         List<String> voters = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(VOTER_FILE))) {
@@ -1164,7 +1310,20 @@ public class ElectionData {
      * Only the nominee ID and timestamp are recorded.
      */
     public static boolean castVote(String voterId, String nomineeId) {
-        System.out.println("DEBUG: Attempting to cast vote for " + voterId + " -> " + nomineeId);
+        // Get current active election
+        String currentElection = ElectionScheduler.getCurrentActiveElection();
+        if (currentElection == null || currentElection.isEmpty()) {
+            currentElection = "DEFAULT";
+        }
+        return castVoteInElection(voterId, nomineeId, currentElection);
+    }
+
+    /**
+     * Cast a vote in a specific election.
+     * Supports per-election voting restrictions.
+     */
+    public static boolean castVoteInElection(String voterId, String nomineeId, String electionName) {
+        System.out.println("DEBUG: Attempting to cast vote for " + voterId + " -> " + nomineeId + " in election: " + electionName);
         
         // Validate inputs
         if (voterId == null || voterId.trim().isEmpty()) {
@@ -1175,6 +1334,10 @@ public class ElectionData {
         if (nomineeId == null || nomineeId.trim().isEmpty()) {
             System.out.println("❌ Invalid nominee ID: " + nomineeId);
             return false;
+        }
+        
+        if (electionName == null || electionName.trim().isEmpty()) {
+            electionName = "DEFAULT";
         }
         
         // Check if voter exists and is registered
@@ -1194,9 +1357,12 @@ public class ElectionData {
             return false;
         }
         
-        // Check if already voted
-        if (hasVoted(voterId)) {
-            System.out.println("❌ Voter already voted: " + voterId);
+        // Check multi-election voting policy
+        if (!canVoteInElection(voterId, electionName)) {
+            System.out.println("❌ Voter cannot vote in this election (policy restricted): " + voterId);
+            if (!isMultiElectionVotingAllowed()) {
+                System.out.println("   Reason: Multi-election voting is disabled. Voter already voted in another election.");
+            }
             return false;
         }
         
@@ -1209,6 +1375,7 @@ public class ElectionData {
         String timestamp = String.valueOf(System.currentTimeMillis());
         
         // ANONYMIZED VOTE: Store ONLY nominee ID and timestamp
+
         try {
             // Create vote file if it doesn't exist
             File voteFile = new File(VOTE_FILE);
@@ -1240,10 +1407,11 @@ public class ElectionData {
             }
             
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(VOTER_VOTED_LOG, true))) {
-                writer.write(voterId + ":" + timestamp);
+                // New format includes election name: voterId:timestamp:electionName
+                writer.write(voterId + ":" + timestamp + ":" + electionName);
                 writer.newLine();
                 writer.flush();  // Explicit flush to disk
-                System.out.println("✅ Voter recorded as voted: " + voterId);
+                System.out.println("✅ Voter recorded as voted: " + voterId + " in election: " + electionName);
             }
         } catch (IOException e) {
             System.out.println("❌ Error recording voter: " + e.getMessage());

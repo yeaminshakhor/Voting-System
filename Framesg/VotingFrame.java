@@ -377,6 +377,11 @@ public class VotingFrame extends JFrame {
     }
 
     private void castVote(JComboBox<String> nomineeComboBox) {
+        String currentElection = ElectionScheduler.getCurrentActiveElection();
+        if (currentElection == null || currentElection.isEmpty()) {
+            currentElection = "DEFAULT";
+        }
+        
         // Final validation before casting vote
         if (!ElectionScheduler.isVotingAllowed()) {
             JOptionPane.showMessageDialog(this, 
@@ -385,10 +390,24 @@ public class VotingFrame extends JFrame {
             return;
         }
         
-        if (ElectionData.hasVoted(voterId)) {
+        if (!ElectionData.canVoteInElection(voterId, currentElection)) {
+            boolean multiVotingAllowed = ElectionData.isMultiElectionVotingAllowed();
+            String message;
+            
+            if (!multiVotingAllowed) {
+                // Multi-election voting is disabled
+                java.util.List<String> votedElections = ElectionData.getVoterElectionHistory(voterId);
+                message = "⚠️ You have already voted!\n\n" +
+                         "According to the voting policy, you can only vote in one election.\n" +
+                         "You have already voted in: " + (votedElections.isEmpty() ? "unknown" : votedElections.get(0));
+            } else {
+                // Multi-election voting is allowed but voter has voted in this specific election
+                message = "⚠️ You have already cast your vote in this election!\n" +
+                         "Each voter can only vote once per election.";
+            }
+            
             JOptionPane.showMessageDialog(this,
-                "⚠️ You have already cast your vote!\n" +
-                "Each voter can only vote once per election.",
+                message,
                 "Already Voted", JOptionPane.WARNING_MESSAGE);
             return;
         }

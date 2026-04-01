@@ -70,8 +70,6 @@ To run this project locally, you will need:
 <img width="1280" height="716" alt="image" src="https://github.com/user-attachments/assets/dde2861a-c0de-41ab-9b1b-620129898ada" />
 
 
-[Consider adding screenshots of the login page, voter interface, and admin dashboard here to visually demonstrate the system and its security features.]
-
 ## 📝 Internal Notes and Development
 
 During the development of this project, several internal documentation files were created to track implementation changes, fixes, and guides. These files (`IMPLEMENTATION_CHANGES_SUMMARY.md`, `FIXES_APPLIED.md`, `IMPLEMENTATION_GUIDE.md`, etc.) are located in the repository for historical context. For a cleaner public view, these can be moved to a `docs/` subdirectory or summarized into a `CONTRIBUTING.md` or `DEVELOPMENT.md` file if you plan to accept external contributions, ensuring sensitive development details are not exposed.
